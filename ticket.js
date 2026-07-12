@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, ActivityType, REST, Routes, SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { Client: PGClient } = require('pg');
 
-// 1. ISKU-XIRKA DATABASE-KA CUSUB EE RAILWAY
+// 1. ISKU-XIRKA DATABASE-KA RAILWAY
 const connectionString = 'Postgresql://postgres:SUBgxADwgvrZSBSHQhyRbmbIzEHnSZte@tokaido.proxy.rlwy.net:10401/railway';
 
 const pgClient = new PGClient({
@@ -30,13 +30,15 @@ const client = new Client({
     ]
 });
 
-// 2. Diyaarinta amarrada
+// 2. Diyaarinta amarrada (Waxaan ku darnay meel lagu qoro Title iyo Description)
 const commands = [
     new SlashCommandBuilder()
         .setName('setup-ticket')
         .setDescription('Ku dhex sameey nidaamka Ticket-ka menu doorasho leh (Admins Only).')
         .addChannelOption(option => option.setName('channel').setDescription('Channel-ka la dhigayo menu-ka Ticket-ka').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addChannelOption(option => option.setName('category').setDescription('Category-ga ay ku dhex furmayaan ticket-ada').setRequired(true).addChannelTypes(ChannelType.GuildCategory)),
+        .addChannelOption(option => option.setName('category').setDescription('Category-ga ay ku dhex furmayaan ticket-ada').setRequired(true).addChannelTypes(ChannelType.GuildCategory))
+        .addStringOption(option => option.setName('title').setDescription('Qor cinwaanka sare ee Embed-ka (Tusaale: Taageerada Server-ka)').setRequired(true))
+        .addStringOption(option => option.setName('description').setDescription('Qor xeerarka ama qoraalka hoose ee Embed-ka').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('tick')
@@ -72,6 +74,8 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'setup-ticket') {
         const ticketChannel = interaction.options.getChannel('channel');
         const category = interaction.options.getChannel('category');
+        const inputTitle = interaction.options.getString('title'); // Qoraalka uu Admin-ku soo qoray
+        const inputDescription = interaction.options.getString('description'); // Qoraalka xeerarka uu Admin-ku soo qoray
 
         try {
             await pgClient.query(`
@@ -81,13 +85,13 @@ client.on('interactionCreate', async interaction => {
                 DO UPDATE SET category_id = $2;
             `, [guild.id, category.id]);
 
-            // Dhisidda Qoraalka Embed-ka (Sida sawirka koowaad)
+            // Dhisidda Qoraalka Embed-ka iyadoo la isticmaalayo wixii uu Admin-ku soo qoray
             const embed = new EmbedBuilder()
-                .setTitle('Enginerious | Support')
-                .setDescription('**Guidelines:**\n\n🔹 Refrain from opening multiple tickets.\n🔹 Refrain from pinging staff unnecessarily.\n🔹 Any Ticket left empty or inactive will be closed.')
+                .setTitle(inputTitle)
+                .setDescription(inputDescription.replace(/\\n/g, '\n')) // Waxay u oggolaaneysaa Admin-ka inuu \n u isticmaalo khad cusub
                 .setColor('#2b2d31');
 
-            // Dhisidda Menu-ka Doorashada (Sida sawirka labaad)
+            // Nidaamka Menu-ga Doorashada
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('ticket_select_menu')
                 .setPlaceholder('Select your Support Ticket')
@@ -107,7 +111,7 @@ client.on('interactionCreate', async interaction => {
                 components: [row]
             });
 
-            await interaction.reply({ content: `✅ Nidaamka Ticket-ka ee Menu-ga leh waxaa lagu diyaariyey channel-ka ${ticketChannel}!`, ephemeral: true });
+            await interaction.reply({ content: `✅ Nidaamka Ticket-ka waa la diyaariyey! Qoraalkaaga Embed-ka waa la raacay.`, ephemeral: true });
         } catch (err) {
             console.error(err);
             await interaction.reply({ content: '❌ Khalad ayaa dhacay marka la habaynayay Ticket-ka.', ephemeral: true });
@@ -161,14 +165,13 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 5. QABASHADA DOORASHADA MENU-KA (SELECT MENU) IYO BADAMADA
+// 5. QABASHADA DOORASHADA MENU-KA IYO BADAMADA
 client.on('interactionCreate', async interaction => {
     const { guild, user, channel } = interaction;
 
-    // A. MARKA QOFKU MENU-KA WAX KA DOORTHO
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
         await interaction.deferReply({ ephemeral: true });
-        const selectedValue = interaction.values[0]; // Nooca ticket-ka uu doortay (general, engine, etc.)
+        const selectedValue = interaction.values[0];
 
         try {
             const res = await pgClient.query('SELECT category_id FROM tickets WHERE guild_id = $1', [guild.id]);
@@ -197,9 +200,8 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket 🔒').setStyle(ButtonStyle.Danger)
             );
 
-            // Farriin u gaar ah nooca uu doortay
             await privateChannel.send({
-                content: `👋 Ku soo dhawaada qaybta **${selectedValue.toUpperCase()} SUPPORT**, ${user}!\n\nFadlan halkan ku qor faahfaahinta caawinaada aad u baahan tahay, maamulkuna dhowaan ayuu kuu jawaabi doonaa.`,
+                content: `👋 Ku soo dhawaada qaybta **${selectedValue.toUpperCase()} SUPPORT**, ${user}!\n\nFadlan halkan ku qor faahfaahinta caawinaada aad u baahan tehay.`,
                 components: [closeRow]
             });
 
@@ -210,7 +212,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // B. MARKA TICKET-KA LA XIRAYO
     if (interaction.isButton() && interaction.customId === 'close_ticket_btn') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return interaction.reply({ content: '❌ Kaliya Maamulayaasha (Admins) ayaa xiri kara ticket-ka!', ephemeral: true });
