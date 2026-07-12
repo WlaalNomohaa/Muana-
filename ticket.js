@@ -303,6 +303,31 @@ client.on('interactionCreate', async interaction => {
 
     // C. KONTROOLKA BADAMADA (BUTTONS)
     if (interaction.isButton()) {
+        // --- CUSBOONAYSIIYEY: Tani waxay fureysaa Modal-ka qaabaynta qaybaha Ticket-ka ---
+        if (interaction.customId.startsWith('open_config_modal_')) {
+            const targetChannelId = interaction.customId.replace('open_config_modal_', '');
+            
+            const modal = new ModalBuilder()
+                .setCustomId(`ticket_config_modal_${targetChannelId}`)
+                .setTitle('Qor 5 Qaybood ee Ticket-ka');
+
+            const cat1 = new TextInputBuilder().setCustomId('cat_1').setLabel('Qaybta 1 (Tusaale: ⁠Buy Coinv)诚').setStyle(TextInputStyle.Short).setRequired(true);
+            const cat2 = new TextInputBuilder().setCustomId('cat_2').setLabel('Qaybta 2 (Tusaale: Claim Reward)').setStyle(TextInputStyle.Short).setRequired(true);
+            const cat3 = new TextInputBuilder().setCustomId('cat_3').setLabel('Qaybta 3 (Tusaale: Complain)').setStyle(TextInputStyle.Short).setRequired(true);
+            const cat4 = new TextInputBuilder().setCustomId('cat_4').setLabel('Qaybta 4 (Tusaale: Tech Support)').setStyle(TextInputStyle.Short).setRequired(true);
+            const cat5 = new TextInputBuilder().setCustomId('cat_5').setLabel('Qaybta 5 (Tusaale: Other)').setStyle(TextInputStyle.Short).setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(cat1),
+                new ActionRowBuilder().addComponents(cat2),
+                new ActionRowBuilder().addComponents(cat3),
+                new ActionRowBuilder().addComponents(cat4),
+                new ActionRowBuilder().addComponents(cat5)
+            );
+
+            await interaction.showModal(modal);
+        }
+
         if (interaction.customId.startsWith('verify_role_btn_')) {
             await interaction.deferReply({ ephemeral: true });
             const targetRoleNameClean = interaction.customId.replace('verify_role_btn_', '');
@@ -378,31 +403,4 @@ client.on('interactionCreate', async interaction => {
             const displayLabel = interaction.component.options.find(o => o.value === selectedValue).label;
 
             try {
-                const checkLimit = await pgClient.query(`SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
-
-                if (checkLimit.rows.length > 0) {
-                    const openedTime = new Date(checkLimit.rows[0].opened_at);
-                    const now = new Date();
-                    const diffMs = now - openedTime;
-                    const diffHours = diffMs / (1000 * 60 * 60);
-
-                    if (diffHours < 12) {
-                        const remainingHours = Math.ceil(12 - diffHours);
-                        return interaction.editReply({ content: `❌ Waxaad furi kartaa kaliya 1 Ticket 12-kii saacba mar! Fadlan sug **${remainingHours} saacadood** oo kale.` });
-                    } else {
-                        await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
-                    }
-                }
-
-                const channelName = `ticket-${user.username}`.toLowerCase().replace(/[^a-z0-9]/g, '-');
-
-                const privateChannel = await guild.channels.create({
-                    name: channelName,
-                    type: ChannelType.GuildText,
-                    topic: `User-ID: ${user.id} | Auto-Close Enabled`,
-                    permissionOverwrites: [
-                        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-                        { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-                        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-                    ]
-           
+                const checkLimit = await pgClient.query(`SELECT opened_at F
