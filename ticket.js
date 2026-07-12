@@ -384,7 +384,7 @@ client.on('interactionCreate', async interaction => {
                 const topic = channel.topic || '';
                 const match = topic.match(/User-ID:\s*(\d+)/);
                 if (match) {
-                    await pgClient.query suicide(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [match[1], guild.id]);
+                    await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [match[1], guild.id]);
                 }
             } catch (e) { console.error(e); }
 
@@ -404,4 +404,4 @@ client.on('interactionCreate', async interaction => {
             try {
                 const checkLimit = await pgClient.query(`SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
 
-       
+               
