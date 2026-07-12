@@ -403,7 +403,6 @@ client.on('interactionCreate', async interaction => {
 
             try {
                 const checkLimit = await pgClient.query(`SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
-
                 if (checkLimit.rows.length > 0) {
                     const openedTime = new Date(checkLimit.rows[0].opened_at);
                     const now = new Date();
@@ -507,3 +506,5 @@ async function checkIdleTickets() {
 }
 
 client.login(process.env.DISCORD_TOKEN);
+
+                
