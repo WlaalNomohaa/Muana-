@@ -14,10 +14,25 @@ pgClient.connect().then(async () => {
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
 
 const commands = [
-    new SlashCommandBuilder().setName('setup-ticket').setDescription('Setup Tickets').addChannelOption(o => o.setName('channel').setRequired(true).addChannelTypes(ChannelType.GuildText)).addStringOption(o => o.setName('title').setRequired(true)).addStringOption(o => o.setName('description').setRequired(true)),
-    new SlashCommandBuilder().setName('tick').setDescription('Force Open Ticket').addUserOption(o => o.setName('user').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-verify').setDescription('Setup Verify').addChannelOption(o => o.setName('channel').setRequired(true).addChannelTypes(ChannelType.GuildText)).addStringOption(o => o.setName('description').setRequired(true))
+    new SlashCommandBuilder()
+        .setName('setup-ticket')
+        .setDescription('Setup Tickets')
+        .addChannelOption(o => o.setName('channel').setDescription('Dooro channel-ka').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addStringOption(o => o.setName('title').setDescription('Qor cinwaanka').setRequired(true))
+        .addStringOption(o => o.setName('description').setDescription('Qor sharaxaadda').setRequired(true)),
+        
+    new SlashCommandBuilder()
+        .setName('tick')
+        .setDescription('Force Open Ticket')
+        .addUserOption(o => o.setName('user').setDescription('Dooro user-ka').setRequired(true)),
+        
+    new SlashCommandBuilder()
+        .setName('setup-verify')
+        .setDescription('Setup Verify')
+        .addChannelOption(o => o.setName('channel').setDescription('Dooro channel-ka').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addStringOption(o => o.setName('description').setDescription('Qor sharaxaadda').setRequired(true))
 ].map(c => c.toJSON());
+
 
 client.once('ready', async () => {
     console.log(`Bot is active: ${client.user.tag}`);
