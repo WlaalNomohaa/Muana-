@@ -1,0 +1,14 @@
+{
+  "name": "ticket-bot",
+  "version": "1.0.0",
+  "description": "Discord Ticket Bot on Kinesis",
+  "main": "ticket.js",
+  "scripts": {
+    "start": "node ticket.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "pg": "^8.11.3"
+  }
+}
+
