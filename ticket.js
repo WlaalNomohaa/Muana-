@@ -303,7 +303,6 @@ client.on('interactionCreate', async interaction => {
 
     // C. KONTROOLKA BADAMADA (BUTTONS)
     if (interaction.isButton()) {
-        // --- CUSBOONAYSIIYEY: Tani waxay fureysaa Modal-ka qaabaynta qaybaha Ticket-ka ---
         if (interaction.customId.startsWith('open_config_modal_')) {
             const targetChannelId = interaction.customId.replace('open_config_modal_', '');
             
@@ -311,7 +310,7 @@ client.on('interactionCreate', async interaction => {
                 .setCustomId(`ticket_config_modal_${targetChannelId}`)
                 .setTitle('Qor 5 Qaybood ee Ticket-ka');
 
-            const cat1 = new TextInputBuilder().setCustomId('cat_1').setLabel('Qaybta 1 (Tusaale: ⁠Buy Coinv)诚').setStyle(TextInputStyle.Short).setRequired(true);
+            const cat1 = new TextInputBuilder().setCustomId('cat_1').setLabel('Qaybta 1 (Tusaale: Buy Coins)').setStyle(TextInputStyle.Short).setRequired(true);
             const cat2 = new TextInputBuilder().setCustomId('cat_2').setLabel('Qaybta 2 (Tusaale: Claim Reward)').setStyle(TextInputStyle.Short).setRequired(true);
             const cat3 = new TextInputBuilder().setCustomId('cat_3').setLabel('Qaybta 3 (Tusaale: Complain)').setStyle(TextInputStyle.Short).setRequired(true);
             const cat4 = new TextInputBuilder().setCustomId('cat_4').setLabel('Qaybta 4 (Tusaale: Tech Support)').setStyle(TextInputStyle.Short).setRequired(true);
@@ -385,7 +384,7 @@ client.on('interactionCreate', async interaction => {
                 const topic = channel.topic || '';
                 const match = topic.match(/User-ID:\s*(\d+)/);
                 if (match) {
-                    await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [match[1], guild.id]);
+                    await pgClient.query suicide(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [match[1], guild.id]);
                 }
             } catch (e) { console.error(e); }
 
@@ -403,4 +402,6 @@ client.on('interactionCreate', async interaction => {
             const displayLabel = interaction.component.options.find(o => o.value === selectedValue).label;
 
             try {
-                const checkLimit = await pgClient.query(`SELECT opened_at F
+                const checkLimit = await pgClient.query(`SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
+
+       
