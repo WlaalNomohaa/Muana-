@@ -203,7 +203,7 @@ client.on('interactionCreate', async interaction => {
                 });
 
                 await interaction.editReply({ content: `✅ Si guul leh ayaa Ticket loogu furay: ${privateChannel}` });
-            } catch (err) {
+            } catch (err {
                 console.error(err);
                 await interaction.editReply({ content: '❌ Waxaa dhacay khalad.' });
             }
@@ -404,4 +404,106 @@ client.on('interactionCreate', async interaction => {
             try {
                 const checkLimit = await pgClient.query(`SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
 
-               
+                if (checkLimit.rows.length > 0) {
+                    const openedTime = new Date(checkLimit.rows[0].opened_at);
+                    const now = new Date();
+                    const diffMs = now - openedTime;
+                    const diffHours = diffMs / (1000 * 60 * 60);
+
+                    if (diffHours < 12) {
+                        const remainingHours = Math.ceil(12 - diffHours);
+                        return interaction.editReply({ content: `❌ Waxaad furi kartaa kaliya 1 Ticket 12-kii saacba mar! Fadlan sug **${remainingHours} saacadood** oo kale.` });
+                    } else {
+                        await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
+                    }
+                }
+
+                const channelName = `ticket-${user.username}`.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+                const privateChannel = await guild.channels.create({
+                    name: channelName,
+                    type: ChannelType.GuildText,
+                    topic: `User-ID: ${user.id} | Auto-Close Enabled`,
+                    permissionOverwrites: [
+                        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+                        { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+                        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+                    ]
+                });
+
+                let adminRolesMention = [];
+                guild.roles.cache.forEach(role => {
+                    if (role.permissions.has(PermissionFlagsBits.Administrator) && role.name !== '@everyone') {
+                        privateChannel.permissionOverwrites.create(role.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => {});
+                        adminRolesMention.push(`<@&${role.id}>`);
+                    }
+                });
+
+                const mentionText = adminRolesMention.length > 0 ? adminRolesMention.join(' ') : '@here';
+
+                await pgClient.query(`INSERT INTO ticket_limits (user_id, guild_id) VALUES ($1, $2) ON CONFLICT (user_id, guild_id) DO UPDATE SET opened_at = CURRENT_TIMESTAMP`, [user.id, guild.id]);
+
+                const closeRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket 🔒').setStyle(ButtonStyle.Danger)
+                );
+
+                const infoEmbed = new EmbedBuilder()
+                    .setTitle(`🎫 Ticket Qaybta: ${displayLabel}`)
+                    .setDescription(`👋 Ku soo dhawaada qaybta Taageerada, ${user}! \n\nFadlan halkan ku qor dhibaatada ama su'aasha aad qabto si ay kuugu caawiyaan Maamulayaasha.`)
+                    .setColor('#2b2d31')
+                    .setTimestamp();
+
+                await privateChannel.send({
+                    content: `||${user}|| 🔔 **Attention Admin:** ${mentionText}\nTicket cusub ayaa loo furay qaybta **${displayLabel}**.`,
+                    embeds: [infoEmbed],
+                    components: [closeRow]
+                });
+
+                await interaction.editReply({ content: `✅ Si guul leh ayaa Ticket-kaagii loogu furay: ${privateChannel}` });
+            } catch (err) {
+                console.error(err);
+                await interaction.editReply({ content: '❌ Waxaa dhacay khalad intii channel-ka la abuurayay.' });
+            }
+        }
+    }
+});
+
+// 4. SHAQADA AUTO-CLOSE-KA (5 HOURS IDLE CHECK)
+async function checkIdleTickets() {
+    client.guilds.cache.forEach(async (guild) => {
+        try {
+            const channels = guild.channels.cache.filter(c => c.name.startsWith('ticket-') && c.type === ChannelType.GuildText);
+            
+            channels.forEach(async (chan) => {
+                try {
+                    const messages = await chan.messages.fetch({ limit: 1 });
+                    const lastMsg = messages.first();
+                    
+                    if (lastMsg) {
+                        const lastMsgTime = lastMsg.createdAt;
+                        const now = new Date();
+                        const diffMs = now - lastMsgTime;
+                        const diffHours = diffMs / (1000 * 60 * 60);
+
+                        if (diffHours >= 5) {
+                            console.log(`⚠️ Auto-Deleting Idle Ticket: ${chan.name}`);
+                            await chan.send({ content: '⏰ **Auto-Close:** Maadaama aan wax fariin ah laga soo dirin channel-kan 5-tii saac ee la soo dhaafay, si toos ah ayaa loo xirayaa...' });
+                            
+                            const topic = chan.topic || '';
+                            const match = topic.match(/User-ID:\s*(\d+)/);
+                            if (match) {
+                                await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [match[1], guild.id]);
+                            }
+
+                            setTimeout(async () => {
+                                try { await chan.delete(); } catch (err) {}
+                            }, 5000);
+                        }
+                    }
+                } catch (err) { }
+            });
+        } catch (err) { }
+    });
+}
+
+client.login(process.env.DISCORD_TOKEN);
