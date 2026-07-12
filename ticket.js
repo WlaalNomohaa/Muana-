@@ -16,7 +16,6 @@ pgClient.connect()
         await pgClient.query(`
             CREATE TABLE IF NOT EXISTS tickets (
                 guild_id TEXT PRIMARY KEY,
-                category_id TEXT,
                 embed_title TEXT,
                 embed_desc TEXT
             );
@@ -42,13 +41,12 @@ const client = new Client({
     ]
 });
 
-// 2. Diyaarinta amarrada
+// 2. Diyaarinta amarrada (Halkan waxaa laga saaray category-gii)
 const commands = [
     new SlashCommandBuilder()
         .setName('setup-ticket')
         .setDescription('Ku dhex sameey nidaamka Ticket-ka menu doorasho leh (Admins Only).')
         .addChannelOption(option => option.setName('channel').setDescription('Channel-ka la dhigayo menu-ka Ticket-ka').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addChannelOption(option => option.setName('category').setDescription('Category-ga ay ku dhex furmayaan ticket-ada').setRequired(true).addChannelTypes(ChannelType.GuildCategory))
         .addStringOption(option => option.setName('title').setDescription('Qor cinwaanka sare ee Embed-ka').setRequired(true))
         .addStringOption(option => option.setName('description').setDescription('Qor xeerarka ama qoraalka hoose ee Embed-ka').setRequired(true)),
 
@@ -83,17 +81,16 @@ client.on('interactionCreate', async interaction => {
 
     if (commandName === 'setup-ticket') {
         const ticketChannel = interaction.options.getChannel('channel');
-        const category = interaction.options.getChannel('category');
         const inputTitle = interaction.options.getString('title');
         const inputDescription = interaction.options.getString('description');
 
         try {
             await pgClient.query(`
-                INSERT INTO tickets (guild_id, category_id, embed_title, embed_desc)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO tickets (guild_id, embed_title, embed_desc)
+                VALUES ($1, $2, $3)
                 ON CONFLICT (guild_id)
-                DO UPDATE SET category_id = $2, embed_title = $3, embed_desc = $4;
-            `, [guild.id, category.id, inputTitle, inputDescription]);
+                DO UPDATE SET embed_title = $2, embed_desc = $3;
+            `, [guild.id, inputTitle, inputDescription]);
 
             const setupRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -118,22 +115,29 @@ client.on('interactionCreate', async interaction => {
         const targetUser = interaction.options.getUser('user');
 
         try {
-            const res = await pgClient.query('SELECT category_id FROM tickets WHERE guild_id = $1', [guild.id]);
-            if (res.rows.length === 0) return interaction.editReply({ content: '❌ Nidaamka Ticket-ka wali lama qaabayn.' });
-
-            const categoryId = res.rows[0].category_id;
             const channelName = `ticket-${targetUser.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
 
             const privateChannel = await guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
-                parent: categoryId,
                 topic: `User-ID: ${targetUser.id} | Auto-Close Enabled`,
                 permissionOverwrites: [
                     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
                     { id: targetUser.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+                    { id: guild.roles.premiumSubscriber || guild.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] } // Tusaale maamulayaasha kale
                 ]
+            });
+
+            // Sii ogolaansho cid kasta oo leh Administrator permission
+            guild.roles.cache.forEach(role => {
+                if (role.permissions.has(PermissionFlagsBits.Administrator)) {
+                    privateChannel.permissionOverwrites.create(role.id, {
+                        ViewChannel: true,
+                        SendMessages: true,
+                        ReadMessageHistory: true
+                    }).catch(() => {});
+                }
             });
 
             const closeRow = new ActionRowBuilder().addComponents(
@@ -141,7 +145,7 @@ client.on('interactionCreate', async interaction => {
             );
 
             await privateChannel.send({
-                content: `👋 Ku soo dhawaada qaybta Taageerada, ${targetUser}!\n\nMaamulaha ${interaction.user} ayaa kuu furay tikidhkan.`,
+                content: `👋 Ku soo dhawaada qaybta Taageerada, ${targetUser}! \n\nMaamulayaasha (Admins) halkan ayay idinku caawin doonaan dhowaan.`,
                 components: [closeRow]
             });
 
@@ -153,7 +157,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 4. Maareynta Badamada, Modal-ka, iyo Xulashada Menu-ga
+// 4. Maareynta Badamada iyo Xulashada Menu-ga (Toos u fur Ticket-ka)
 client.on('interactionCreate', async interaction => {
     const { guild, user, channel } = interaction;
 
@@ -226,11 +230,14 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+    // C. MARKA USER-KU DOORANAYO QAYB (TOOS AYUU TICKET-KU U FURMAYA HADDA!)
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
+        await interaction.deferReply({ ephemeral: true });
         const selectedValue = interaction.values[0];
         const displayLabel = interaction.component.options.find(o => o.value === selectedValue).label;
 
         try {
+            // 12 Saac Rate-limit Check
             const checkLimit = await pgClient.query(
                 `SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, 
                 [user.id, guild.id]
@@ -244,60 +251,20 @@ client.on('interactionCreate', async interaction => {
 
                 if (diffHours < 12) {
                     const remainingHours = Math.ceil(12 - diffHours);
-                    return interaction.reply({ 
-                        content: `❌ Waxaad furi kartaa kaliya 1 Ticket 12-kii saacba mar! Fadlan sug **${remainingHours} saacadood** oo kale.`, 
-                        ephemeral: true 
+                    return interaction.editReply({ 
+                        content: `❌ Waxaad furi kartaa kaliya 1 Ticket 12-kii saacba mar! Fadlan sug **${remainingHours} saacadood** oo kale.`
                     });
                 } else {
                     await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
                 }
             }
 
-            const userModal = new ModalBuilder()
-                .setCustomId(`user_ticket_details_${selectedValue}`)
-                .setTitle(`Submit: ${displayLabel}`);
-
-            const reasonInput = new TextInputBuilder()
-                .setCustomId('ticket_reason')
-                .setLabel('Maxaad noogu baahatay? (Reason)')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true)
-                .setPlaceholder('Fadlan halkan ku qor faahfaahinta caawinaada aad u baahan tahay...');
-
-            const rulesInput = new TextInputBuilder()
-                .setCustomId('ticket_rules')
-                .setLabel('Xeerarka ma akhrisay? (Haa/Maya)')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true)
-                .setPlaceholder('Haa');
-
-            userModal.addComponents(
-                new ActionRowBuilder().addComponents(reasonInput),
-                new ActionRowBuilder().addComponents(rulesInput)
-            );
-
-            await interaction.showModal(userModal);
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('user_ticket_details_')) {
-        await interaction.deferReply({ ephemeral: true });
-        const selectedValue = interaction.customId.replace('user_ticket_details_', '');
-        
-        const userReason = interaction.fields.getTextInputValue('ticket_reason');
-        const userRules = interaction.fields.getTextInputValue('ticket_rules');
-
-        try {
-            const res = await pgClient.query('SELECT category_id FROM tickets WHERE guild_id = $1', [guild.id]);
-            const categoryId = res.rows[0].category_id;
             const channelName = `ticket-${user.username}`.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
+            // Abuurista Private Channel (Admins iyo User kaliya)
             const privateChannel = await guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
-                parent: categoryId,
                 topic: `User-ID: ${user.id} | Auto-Close Enabled`,
                 permissionOverwrites: [
                     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -306,6 +273,18 @@ client.on('interactionCreate', async interaction => {
                 ]
             });
 
+            // Sii ogolaansho Admin kasta oo server-ka jooga si uu u arko
+            guild.roles.cache.forEach(role => {
+                if (role.permissions.has(PermissionFlagsBits.Administrator)) {
+                    privateChannel.permissionOverwrites.create(role.id, {
+                        ViewChannel: true,
+                        SendMessages: true,
+                        ReadMessageHistory: true
+                    }).catch(() => {});
+                }
+            });
+
+            // U keydi limit-ka 12 saac
             await pgClient.query(
                 `INSERT INTO ticket_limits (user_id, guild_id) VALUES ($1, $2) ON CONFLICT (user_id, guild_id) DO UPDATE SET opened_at = CURRENT_TIMESTAMP`, 
                 [user.id, guild.id]
@@ -316,19 +295,19 @@ client.on('interactionCreate', async interaction => {
             );
 
             const infoEmbed = new EmbedBuilder()
-                .setTitle(`🎫 Ticket Cusub oo la furay`)
-                .setDescription(`👋 Ku soo dhawaada qaybta Taageerada, ${user}! \n\n**Xeerarka Ma Akhrisay?:** ${userRules}`)
-                .addFields({ name: '📝 Faahfaahinta dhibaatada:', value: userReason })
-                .setColor('#5865F2')
+                .setTitle(`🎫 Ticket Qaybta: ${displayLabel}`)
+                .setDescription(`👋 Ku soo dhawaada qaybta Taageerada, ${user}! \n\nFadlan halkan ku qor dhibaatada ama su'aasha aad qabto si ay kuugu caawiyaan Maamulayaasha.`)
+                .setColor('#2b2d31')
                 .setTimestamp();
 
+            // Qoraal haboon oo lagu mention garaynayo Admins iyo User-ka rasmiga ah
             await privateChannel.send({
-                content: `||${user}||`,
+                content: `||${user}|| 🔔 **Attention Admins!** Ticket cusub ayaa loo furay qaybta **${displayLabel}**.`,
                 embeds: [infoEmbed],
                 components: [closeRow]
             });
 
-            await interaction.editReply({ content: `✅ Si guul leh ayaa Ticket-kaagii loo sameeyay: ${privateChannel}` });
+            await interaction.editReply({ content: `✅ Si guul leh ayaa Ticket-kaagii loogu furay: ${privateChannel}` });
         } catch (err) {
             console.error(err);
             await interaction.editReply({ content: '❌ Waxaa dhacay khalad intii channel-ka la abuurayay.' });
@@ -360,14 +339,8 @@ client.on('interactionCreate', async interaction => {
 async function checkIdleTickets() {
     client.guilds.cache.forEach(async (guild) => {
         try {
-            const res = await pgClient.query('SELECT category_id FROM tickets WHERE guild_id = $1', [guild.id]);
-            if (res.rows.length === 0) return;
-            
-            const categoryId = res.rows[0].category_id;
-            const category = guild.channels.cache.get(categoryId);
-            if (!category) return;
-
-            const channels = guild.channels.cache.filter(c => c.parentId === categoryId && c.type === ChannelType.GuildText);
+            // Halkan wuxuu baarayaa dhammaan ticket channels-ka magacoodu ku bilaawdo "ticket-"
+            const channels = guild.channels.cache.filter(c => c.name.startsWith('ticket-') && c.type === ChannelType.GuildText);
             
             channels.forEach(async (chan) => {
                 try {
@@ -396,13 +369,14 @@ async function checkIdleTickets() {
                         }
                     }
                 } catch (err) {
-                    // Xamilaad khalad haddii loo baahdo
+                    // Ignored
                 }
             });
         } catch (err) {
-            // Xamilaad khalad haddii loo baahdo
+            // Ignored
         }
     });
 }
 
 client.login(process.env.DISCORD_TOKEN);
+                                                    
