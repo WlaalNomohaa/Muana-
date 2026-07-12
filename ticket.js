@@ -30,7 +30,6 @@ pgClient.connect()
             );
         `);
 
-        // Miis cusub oo kaydinaya xogta Verify-ga
         await pgClient.query(`
             CREATE TABLE IF NOT EXISTS verify_setups (
                 guild_id TEXT PRIMARY KEY,
@@ -46,11 +45,11 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers // Aad u muhiim ah si Roles-ka loo maareeyo
+        GatewayIntentBits.GuildMembers
     ]
 });
 
-// 2. Diyaarinta amarrada (Laba amar oo cusub ayaa ku soo kordhay)
+// 2. Diyaarinta amarrada
 const commands = [
     new SlashCommandBuilder()
         .setName('setup-ticket')
@@ -137,7 +136,6 @@ client.on('interactionCreate', async interaction => {
                 DO UPDATE SET embed_desc = $2;
             `, [guild.id, inputDescription]);
 
-            // Modal weydiinaya 5-ta magac ee badamada
             const modal = new ModalBuilder()
                 .setCustomId(`verify_config_modal_${verifyChannel.id}`)
                 .setTitle('Magacyada 5-ta Badhan ee Verify');
@@ -306,11 +304,8 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isButton() && interaction.customId.startsWith('verify_role_btn_')) {
         await interaction.deferReply({ ephemeral: true });
         const targetRoleNameClean = interaction.customId.replace('verify_role_btn_', '');
-        
-        // Hel magaca badhanka saxda ah ee lagu gujiyey
         const clickedButtonLabel = interaction.component.label;
 
-        // Raadi ama Abuur Role-ka magacaas leh
         let targetRole = guild.roles.cache.find(r => r.name.toLowerCase().replace(/[^a-z0-9]/g, '') === targetRoleNameClean);
         if (!targetRole) {
             try {
@@ -324,7 +319,6 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
-        // Dhammaan magacyada 5-ta qaybood ee suurtogalka ah si looga saaro haddii uu hore u lahaa
         const allVerifyButtons = interaction.message.components[0].components;
         const rolesToRemove = [];
 
@@ -337,12 +331,9 @@ client.on('interactionCreate', async interaction => {
         });
 
         try {
-            // Ka saar kooxihii kale haddii uu ku jiray
             if (rolesToRemove.length > 0) {
                 await member.roles.remove(rolesToRemove);
             }
-            
-            // Sii kooxda cusub
             await member.roles.add(targetRole);
 
             let cleanMsg = `✅ Waxaa si guul leh laguugu siiyey Role-ka **${targetRole.name}**!`;
@@ -413,4 +404,15 @@ client.on('interactionCreate', async interaction => {
                 .setTitle(`🎫 Ticket Qaybta: ${displayLabel}`)
                 .setDescription(`👋 Ku soo dhawaada qaybta Taageerada, ${user}! \n\nFadlan halkan ku qor dhibaatada ama su'aasha aad qabto si ay kuugu caawiyaan Maamulayaasha.`)
                 .setColor('#2b2d31')
-          
+                .setTimestamp();
+
+            await privateChannel.send({
+                content: `||${user}|| 🔔 **Attention Admin:** ${mentionText}\nTicket cusub ayaa loo furay qaybta **${displayLabel}**.`,
+                embeds: [infoEmbed],
+                components: [closeRow]
+            });
+
+            await interaction.editReply({ content: `✅ Si guul leh ayaa Ticket-kaagii loogu furay: ${privateChannel}` });
+        } catch (err) {
+            console.error(err);
+            await interaction.edit
