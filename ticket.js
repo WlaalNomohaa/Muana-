@@ -11,7 +11,7 @@ const pgClient = new PGClient({
 
 pgClient.connect()
     .then(async () => {
-        console.log('🎯 Ticket Bot wuxuu ku xirmay Database-ka rasmiga ah ee Railway!');
+        console.log('🎯 Ticket & Verify Bot wuxuu ku xirmay Database-ka rasmiga ah ee Railway!');
         
         await pgClient.query(`
             CREATE TABLE IF NOT EXISTS tickets (
@@ -29,6 +29,14 @@ pgClient.connect()
                 PRIMARY KEY (user_id, guild_id)
             );
         `);
+
+        // Miis cusub oo kaydinaya xogta Verify-ga
+        await pgClient.query(`
+            CREATE TABLE IF NOT EXISTS verify_setups (
+                guild_id TEXT PRIMARY KEY,
+                embed_desc TEXT
+            );
+        `);
         console.log('🔹 Dhammaan shaxdihii Database-ka waa diyaar!');
     })
     .catch(err => console.error('❌ Database error:', err));
@@ -37,11 +45,12 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers // Aad u muhiim ah si Roles-ka loo maareeyo
     ]
 });
 
-// 2. Diyaarinta amarrada (Halkan waxaa laga saaray category-gii)
+// 2. Diyaarinta amarrada (Laba amar oo cusub ayaa ku soo kordhay)
 const commands = [
     new SlashCommandBuilder()
         .setName('setup-ticket')
@@ -53,12 +62,18 @@ const commands = [
     new SlashCommandBuilder()
         .setName('tick')
         .setDescription('Si toos ah ugu fur Ticket xubin gaar ah (Admins Only).')
-        .addUserOption(option => option.setName('user').setDescription('Dooro xubinta aad u furayso Ticket-ka').setRequired(true))
+        .addUserOption(option => option.setName('user').setDescription('Dooro xubinta aad u furayso Ticket-ka').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('setup-verify')
+        .setDescription('Ku dhex sameey nidaamka Verify-ga oo wata 5 badhan oo Roles ah (Admins Only).')
+        .addChannelOption(option => option.setName('channel').setDescription('Channel-ka la dhigayo fariinta Verify-ga').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addStringOption(option => option.setName('description').setDescription('Qor qoraalka lagu tusi lahaa isticmaalayaasha').setRequired(true))
 ].map(command => command.toJSON());
 
 client.once('ready', async () => {
-    console.log(`🎫 Muana- 🚩 waa diyaar! ${client.user.tag}`);
-    client.user.setActivity('Tikidhada & Taageerada', { type: ActivityType.Listening });
+    console.log(`🎫 Muana- 🚩 Bot is active: ${client.user.tag}`);
+    client.user.setActivity('Tikidhada & Xaqiijinta', { type: ActivityType.Listening });
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     try {
@@ -70,7 +85,7 @@ client.once('ready', async () => {
     setInterval(checkIdleTickets, 60000);
 });
 
-// 3. Qabashada amarrada /setup-ticket iyo /tick
+// 3. Qabashada amarrada Slash-ka
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, guild, member } = interaction;
@@ -110,6 +125,44 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+    if (commandName === 'setup-verify') {
+        const verifyChannel = interaction.options.getChannel('channel');
+        const inputDescription = interaction.options.getString('description');
+
+        try {
+            await pgClient.query(`
+                INSERT INTO verify_setups (guild_id, embed_desc)
+                VALUES ($1, $2)
+                ON CONFLICT (guild_id)
+                DO UPDATE SET embed_desc = $2;
+            `, [guild.id, inputDescription]);
+
+            // Modal weydiinaya 5-ta magac ee badamada
+            const modal = new ModalBuilder()
+                .setCustomId(`verify_config_modal_${verifyChannel.id}`)
+                .setTitle('Magacyada 5-ta Badhan ee Verify');
+
+            const btn1 = new TextInputBuilder().setCustomId('btn_1').setLabel('Badhanka 1 (Tusaale: Real Madrid)').setStyle(TextInputStyle.Short).setRequired(true);
+            const btn2 = new TextInputBuilder().setCustomId('btn_2').setLabel('Badhanka 2 (Tusaale: Barcelona)').setStyle(TextInputStyle.Short).setRequired(true);
+            const btn3 = new TextInputBuilder().setCustomId('btn_3').setLabel('Badhanka 3 (Tusaale: Man City)').setStyle(TextInputStyle.Short).setRequired(true);
+            const btn4 = new TextInputBuilder().setCustomId('btn_4').setLabel('Badhanka 4 (Tusaale: Man United)').setStyle(TextInputStyle.Short).setRequired(true);
+            const btn5 = new TextInputBuilder().setCustomId('btn_5').setLabel('Badhanka 5 (Tusaale: Chelsea)').setStyle(TextInputStyle.Short).setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(btn1),
+                new ActionRowBuilder().addComponents(btn2),
+                new ActionRowBuilder().addComponents(btn3),
+                new ActionRowBuilder().addComponents(btn4),
+                new ActionRowBuilder().addComponents(btn5)
+            );
+
+            await interaction.showModal(modal);
+        } catch (err) {
+            console.error(err);
+            await interaction.reply({ content: '❌ Khalad ayaa dhacay.', ephemeral: true });
+        }
+    }
+
     if (commandName === 'tick') {
         await interaction.deferReply({ ephemeral: true });
         const targetUser = interaction.options.getUser('user');
@@ -124,12 +177,10 @@ client.on('interactionCreate', async interaction => {
                 permissionOverwrites: [
                     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
                     { id: targetUser.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                    { id: guild.roles.premiumSubscriber || guild.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] } // Tusaale maamulayaasha kale
+                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
                 ]
             });
 
-            // Sii ogolaansho cid kasta oo leh Administrator permission
             guild.roles.cache.forEach(role => {
                 if (role.permissions.has(PermissionFlagsBits.Administrator)) {
                     privateChannel.permissionOverwrites.create(role.id, {
@@ -157,34 +208,11 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 4. Maareynta Badamada iyo Xulashada Menu-ga (Toos u fur Ticket-ka)
+// 4. Maareynta Modals, Buttons, iyo Select Menus
 client.on('interactionCreate', async interaction => {
-    const { guild, user, channel } = interaction;
+    const { guild, user, channel, member } = interaction;
 
-    if (interaction.isButton() && interaction.customId.startsWith('open_config_modal_')) {
-        const targetChannelId = interaction.customId.replace('open_config_modal_', '');
-
-        const modal = new ModalBuilder()
-            .setCustomId(`ticket_config_modal_${targetChannelId}`)
-            .setTitle('Menu Categories Setup');
-
-        const cat1 = new TextInputBuilder().setCustomId('cat_1').setLabel('Category 1 (Required)').setStyle(TextInputStyle.Short).setRequired(true);
-        const cat2 = new TextInputBuilder().setCustomId('cat_2').setLabel('Category 2 (Optional)').setStyle(TextInputStyle.Short).setRequired(false);
-        const cat3 = new TextInputBuilder().setCustomId('cat_3').setLabel('Category 3 (Optional)').setStyle(TextInputStyle.Short).setRequired(false);
-        const cat4 = new TextInputBuilder().setCustomId('cat_4').setLabel('Category 4 (Optional)').setStyle(TextInputStyle.Short).setRequired(false);
-        const cat5 = new TextInputBuilder().setCustomId('cat_5').setLabel('Category 5 (Optional)').setStyle(TextInputStyle.Short).setRequired(false);
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(cat1),
-            new ActionRowBuilder().addComponents(cat2),
-            new ActionRowBuilder().addComponents(cat3),
-            new ActionRowBuilder().addComponents(cat4),
-            new ActionRowBuilder().addComponents(cat5)
-        );
-
-        await interaction.showModal(modal);
-    }
-
+    // --- TICKET MODAL SUBMIT ---
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_config_modal_')) {
         await interaction.deferReply({ ephemeral: true });
         const targetChannelId = interaction.customId.replace('ticket_config_modal_', '');
@@ -230,18 +258,113 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // C. MARKA USER-KU DOORANAYO QAYB (TOOS AYUU TICKET-KU U FURMAYA HADDA!)
+    // --- VERIFY MODAL SUBMIT ---
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('verify_config_modal_')) {
+        await interaction.deferReply({ ephemeral: true });
+        const targetChannelId = interaction.customId.replace('verify_config_modal_', '');
+        const targetChannel = guild.channels.cache.get(targetChannelId);
+
+        const names = [
+            interaction.fields.getTextInputValue('btn_1'),
+            interaction.fields.getTextInputValue('btn_2'),
+            interaction.fields.getTextInputValue('btn_3'),
+            interaction.fields.getTextInputValue('btn_4'),
+            interaction.fields.getTextInputValue('btn_5')
+        ];
+
+        try {
+            const res = await pgClient.query('SELECT embed_desc FROM verify_setups WHERE guild_id = $1', [guild.id]);
+            const embedDesc = res.rows[0]?.embed_desc || 'Fadlan dooro kooxdaada si laguu xaqiijiyo!';
+
+            const embed = new EmbedBuilder()
+                .setTitle('👑 NIDAAMKA XAQIIJINTA / VERIFICATION')
+                .setDescription(embedDesc.replace(/\\n/g, '\n'))
+                .setColor('#00ffcc')
+                .setTimestamp();
+
+            const buttonRow = new ActionRowBuilder();
+            const colors = [ButtonStyle.Primary, ButtonStyle.Secondary, ButtonStyle.Success, ButtonStyle.Danger, ButtonStyle.Primary];
+
+            names.forEach((name, index) => {
+                buttonRow.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`verify_role_btn_${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`)
+                        .setLabel(name)
+                        .setStyle(colors[index])
+                );
+            });
+
+            await targetChannel.send({ embeds: [embed], components: [buttonRow] });
+            await interaction.editReply({ content: '✅ Nidaamka Verify-ga oo wata 5 badhan waa la soo diray!' });
+        } catch (err) {
+            console.error(err);
+            await interaction.editReply({ content: '❌ Khalad ayaa dhacay intii la samaynayay badamada.' });
+        }
+    }
+
+    // --- MAAREYNTA BADAMADA VERIFY (ROLES HANDLING) ---
+    if (interaction.isButton() && interaction.customId.startsWith('verify_role_btn_')) {
+        await interaction.deferReply({ ephemeral: true });
+        const targetRoleNameClean = interaction.customId.replace('verify_role_btn_', '');
+        
+        // Hel magaca badhanka saxda ah ee lagu gujiyey
+        const clickedButtonLabel = interaction.component.label;
+
+        // Raadi ama Abuur Role-ka magacaas leh
+        let targetRole = guild.roles.cache.find(r => r.name.toLowerCase().replace(/[^a-z0-9]/g, '') === targetRoleNameClean);
+        if (!targetRole) {
+            try {
+                targetRole = await guild.roles.create({
+                    name: clickedButtonLabel,
+                    color: '#3498db',
+                    reason: 'Nidaamka Auto-Verify'
+                });
+            } catch (e) {
+                return interaction.editReply({ content: '❌ Bot-ku ma awoodo inuu abuuro ama bixiyo Role-kan. Fadlan hubi Permission-ka bot-ka.' });
+            }
+        }
+
+        // Dhammaan magacyada 5-ta qaybood ee suurtogalka ah si looga saaro haddii uu hore u lahaa
+        const allVerifyButtons = interaction.message.components[0].components;
+        const rolesToRemove = [];
+
+        allVerifyButtons.forEach(btn => {
+            const rNameClean = btn.customId.replace('verify_role_btn_', '');
+            const existingRole = guild.roles.cache.find(r => r.name.toLowerCase().replace(/[^a-z0-9]/g, '') === rNameClean);
+            if (existingRole && existingRole.id !== targetRole.id && member.roles.cache.has(existingRole.id)) {
+                rolesToRemove.push(existingRole);
+            }
+        });
+
+        try {
+            // Ka saar kooxihii kale haddii uu ku jiray
+            if (rolesToRemove.length > 0) {
+                await member.roles.remove(rolesToRemove);
+            }
+            
+            // Sii kooxda cusub
+            await member.roles.add(targetRole);
+
+            let cleanMsg = `✅ Waxaa si guul leh laguugu siiyey Role-ka **${targetRole.name}**!`;
+            if (rolesToRemove.length > 0) {
+                cleanMsg += ` (Waxaana lagaa saaray: ${rolesToRemove.map(r => r.name).join(', ')})`;
+            }
+
+            return interaction.editReply({ content: cleanMsg });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply({ content: '❌ Waxaa dhacay khalkhal xilli la bixinayay xeerka (Role).' });
+        }
+    }
+
+    // --- OPEN TICKET FROM SELECT MENU ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
         await interaction.deferReply({ ephemeral: true });
         const selectedValue = interaction.values[0];
         const displayLabel = interaction.component.options.find(o => o.value === selectedValue).label;
 
         try {
-            // 12 Saac Rate-limit Check
-            const checkLimit = await pgClient.query(
-                `SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, 
-                [user.id, guild.id]
-            );
+            const checkLimit = await pgClient.query(`SELECT opened_at FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
 
             if (checkLimit.rows.length > 0) {
                 const openedTime = new Date(checkLimit.rows[0].opened_at);
@@ -251,9 +374,7 @@ client.on('interactionCreate', async interaction => {
 
                 if (diffHours < 12) {
                     const remainingHours = Math.ceil(12 - diffHours);
-                    return interaction.editReply({ 
-                        content: `❌ Waxaad furi kartaa kaliya 1 Ticket 12-kii saacba mar! Fadlan sug **${remainingHours} saacadood** oo kale.`
-                    });
+                    return interaction.editReply({ content: `❌ Waxaad furi kartaa kaliya 1 Ticket 12-kii saacba mar! Fadlan sug **${remainingHours} saacadood** oo kale.` });
                 } else {
                     await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [user.id, guild.id]);
                 }
@@ -261,7 +382,6 @@ client.on('interactionCreate', async interaction => {
 
             const channelName = `ticket-${user.username}`.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
-            // Abuurista Private Channel (Admins iyo User kaliya)
             const privateChannel = await guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
@@ -273,22 +393,17 @@ client.on('interactionCreate', async interaction => {
                 ]
             });
 
-            // Sii ogolaansho Admin kasta oo server-ka jooga si uu u arko
+            let adminRolesMention = [];
             guild.roles.cache.forEach(role => {
-                if (role.permissions.has(PermissionFlagsBits.Administrator)) {
-                    privateChannel.permissionOverwrites.create(role.id, {
-                        ViewChannel: true,
-                        SendMessages: true,
-                        ReadMessageHistory: true
-                    }).catch(() => {});
+                if (role.permissions.has(PermissionFlagsBits.Administrator) && role.name !== '@everyone') {
+                    privateChannel.permissionOverwrites.create(role.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => {});
+                    adminRolesMention.push(`<@&${role.id}>`);
                 }
             });
 
-            // U keydi limit-ka 12 saac
-            await pgClient.query(
-                `INSERT INTO ticket_limits (user_id, guild_id) VALUES ($1, $2) ON CONFLICT (user_id, guild_id) DO UPDATE SET opened_at = CURRENT_TIMESTAMP`, 
-                [user.id, guild.id]
-            );
+            const mentionText = adminRolesMention.length > 0 ? adminRolesMention.join(' ') : '@here';
+
+            await pgClient.query(`INSERT INTO ticket_limits (user_id, guild_id) VALUES ($1, $2) ON CONFLICT (user_id, guild_id) DO UPDATE SET opened_at = CURRENT_TIMESTAMP`, [user.id, guild.id]);
 
             const closeRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket 🔒').setStyle(ButtonStyle.Danger)
@@ -298,85 +413,4 @@ client.on('interactionCreate', async interaction => {
                 .setTitle(`🎫 Ticket Qaybta: ${displayLabel}`)
                 .setDescription(`👋 Ku soo dhawaada qaybta Taageerada, ${user}! \n\nFadlan halkan ku qor dhibaatada ama su'aasha aad qabto si ay kuugu caawiyaan Maamulayaasha.`)
                 .setColor('#2b2d31')
-                .setTimestamp();
-
-            // Qoraal haboon oo lagu mention garaynayo Admins iyo User-ka rasmiga ah
-            await privateChannel.send({
-                content: `||${user}|| 🔔 **Attention Admins!** Ticket cusub ayaa loo furay qaybta **${displayLabel}**.`,
-                embeds: [infoEmbed],
-                components: [closeRow]
-            });
-
-            await interaction.editReply({ content: `✅ Si guul leh ayaa Ticket-kaagii loogu furay: ${privateChannel}` });
-        } catch (err) {
-            console.error(err);
-            await interaction.editReply({ content: '❌ Waxaa dhacay khalad intii channel-ka la abuurayay.' });
-        }
-    }
-
-    if (interaction.isButton() && interaction.customId === 'close_ticket_btn') {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return interaction.reply({ content: '❌ Kaliya Maamulayaasha (Admins) ayaa xiri kara ticket-ka!', ephemeral: true });
-        }
-        await interaction.reply({ content: '🔒 Ticket-kan waa la xirayaa 5 ilbiriqsi gudahood...' });
-        
-        try {
-            const topic = channel.topic || '';
-            const match = topic.match(/User-ID:\s*(\d+)/);
-            if (match) {
-                const userId = match[1];
-                await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [userId, guild.id]);
-            }
-        } catch (e) { console.error(e); }
-
-        setTimeout(async () => {
-            try { await channel.delete(); } catch (err) { console.error(err); }
-        }, 5000);
-    }
-});
-
-// 5. SHAQADA AUTO-CLOSE-KA (5 HOURS IDLE CHECK)
-async function checkIdleTickets() {
-    client.guilds.cache.forEach(async (guild) => {
-        try {
-            // Halkan wuxuu baarayaa dhammaan ticket channels-ka magacoodu ku bilaawdo "ticket-"
-            const channels = guild.channels.cache.filter(c => c.name.startsWith('ticket-') && c.type === ChannelType.GuildText);
-            
-            channels.forEach(async (chan) => {
-                try {
-                    const messages = await chan.messages.fetch({ limit: 1 });
-                    const lastMsg = messages.first();
-                    
-                    if (lastMsg) {
-                        const lastMsgTime = lastMsg.createdAt;
-                        const now = new Date();
-                        const diffMs = now - lastMsgTime;
-                        const diffHours = diffMs / (1000 * 60 * 60);
-
-                        if (diffHours >= 5) {
-                            console.log(`⚠️ Auto-Deleting Idle Ticket: ${chan.name}`);
-                            await chan.send({ content: '⏰ **Auto-Close:** Maadaama aan wax fariin ah laga soo dirin channel-kan 5-tii saac ee la soo dhaafay, si toos ah ayaa loo xirayaa...' });
-                            
-                            const topic = chan.topic || '';
-                            const match = topic.match(/User-ID:\s*(\d+)/);
-                            if (match) {
-                                await pgClient.query(`DELETE FROM ticket_limits WHERE user_id = $1 AND guild_id = $2`, [match[1], guild.id]);
-                            }
-
-                            setTimeout(async () => {
-                                try { await chan.delete(); } catch (err) {}
-                            }, 5000);
-                        }
-                    }
-                } catch (err) {
-                    // Ignored
-                }
-            });
-        } catch (err) {
-            // Ignored
-        }
-    });
-}
-
-client.login(process.env.DISCORD_TOKEN);
-                                                    
+          
