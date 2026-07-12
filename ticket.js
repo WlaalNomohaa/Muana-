@@ -14,25 +14,10 @@ pgClient.connect().then(async () => {
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
 
 const commands = [
-    new SlashCommandBuilder()
-        .setName('setup-ticket')
-        .setDescription('Setup Tickets')
-        .addChannelOption(o => o.setName('channel').setDescription('Dooro channel-ka').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addStringOption(o => o.setName('title').setDescription('Qor cinwaanka').setRequired(true))
-        .addStringOption(o => o.setName('description').setDescription('Qor sharaxaadda').setRequired(true)),
-        
-    new SlashCommandBuilder()
-        .setName('tick')
-        .setDescription('Force Open Ticket')
-        .addUserOption(o => o.setName('user').setDescription('Dooro user-ka').setRequired(true)),
-        
-    new SlashCommandBuilder()
-        .setName('setup-verify')
-        .setDescription('Setup Verify')
-        .addChannelOption(o => o.setName('channel').setDescription('Dooro channel-ka').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addStringOption(o => o.setName('description').setDescription('Qor sharaxaadda').setRequired(true))
+    new SlashCommandBuilder().setName('setup-ticket').setDescription('Setup Tickets').addChannelOption(o => o.setName('channel').setDescription('Dooro channel').setRequired(true).addChannelTypes(ChannelType.GuildText)).addStringOption(o => o.setName('title').setDescription('Cinwaanka').setRequired(true)).addStringOption(o => o.setName('description').setDescription('Sharaxaadda').setRequired(true)),
+    new SlashCommandBuilder().setName('tick').setDescription('Force Open Ticket').addUserOption(o => o.setName('user').setDescription('Dooro user').setRequired(true)),
+    new SlashCommandBuilder().setName('setup-verify').setDescription('Setup Verify').addChannelOption(o => o.setName('channel').setDescription('Dooro channel').setRequired(true).addChannelTypes(ChannelType.GuildText)).addStringOption(o => o.setName('description').setDescription('Sharaxaadda').setRequired(true))
 ].map(c => c.toJSON());
-
 
 client.once('ready', async () => {
     console.log(`Bot is active: ${client.user.tag}`);
@@ -40,14 +25,10 @@ client.once('ready', async () => {
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
     setInterval(checkIdleTickets, 60000);
 });
-
 client.on('interactionCreate', async interaction => {
-    const { guild, user, channel, member } = interaction;
+    const { guild, user } = interaction;
     if (!guild) return;
-    
-    // (Halkan waa meesha ay ka bilaabmaan logic-ga amarrada, Button-ka, iyo Modal-ka...)
-              // ... (Qaybta 1aad ayaa halkaan kaga dhamaanaysa, Qaybta 2aadna way ka sii soconaysaa)
-    
+
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
         await interaction.deferReply({ ephemeral: true });
         const selectedValue = interaction.values[0];
