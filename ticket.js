@@ -10,16 +10,25 @@ const pgClient = new PGClient({
 });
 
 pgClient.connect()
-    .then(() => {
+    .then(async () => {
         console.log('🎯 Ticket Bot wuxuu ku xirmay Database-ka rasmiga ah ee Railway!');
-        return pgClient.query(`
+        
+        // Abuur shaxda haddii aysan jirin
+        await pgClient.query(`
             CREATE TABLE IF NOT EXISTS tickets (
                 guild_id TEXT PRIMARY KEY,
-                category_id TEXT,
-                embed_title TEXT,
-                embed_desc TEXT
+                category_id TEXT
             );
         `);
+
+        // Ku dar tiirka embed_title haddii uu ka maqan yahay
+        try {
+            await pgClient.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS embed_title TEXT;`);
+            await pgClient.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS embed_desc TEXT;`);
+            console.log('🔹 Tiirarkii cusbaa ee Database-ka si guul leh ayaa loo cusboonaysiiyey!');
+        } catch (alterErr) {
+            console.log('ℹ️ Tiirarku mar hore ayay jireen ama si otomaatig ah ayaa loo saxay.');
+        }
     })
     .then(() => console.log('✅ Table-kii Tickets-ka waa diyaar!'))
     .catch(err => console.error('❌ Database-ka waa laga waayey isku-xirka:', err));
@@ -77,7 +86,6 @@ client.on('interactionCreate', async interaction => {
         const inputDescription = interaction.options.getString('description');
 
         try {
-            // Ku kaydi xogta database-ka si loo isticmaalo marka foomka la buuxiyo
             await pgClient.query(`
                 INSERT INTO tickets (guild_id, category_id, embed_title, embed_desc)
                 VALUES ($1, $2, $3, $4)
@@ -85,7 +93,6 @@ client.on('interactionCreate', async interaction => {
                 DO UPDATE SET category_id = $2, embed_title = $3, embed_desc = $4;
             `, [guild.id, category.id, inputTitle, inputDescription]);
 
-            // U soo saar badanka qaabaynta qaybaha menu-ka
             const setupRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId(`open_config_modal_${ticketChannel.id}`)
@@ -104,7 +111,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- /tick ---
     if (commandName === 'tick') {
         await interaction.deferReply({ ephemeral: true });
         const targetUser = interaction.options.getUser('user');
@@ -148,7 +154,6 @@ client.on('interactionCreate', async interaction => {
 client.on('interactionCreate', async interaction => {
     const { guild, user, channel } = interaction;
 
-    // A. MARKA ADMIN-KU RIIXO "Configure Menu Categories"
     if (interaction.isButton() && interaction.customId.startsWith('open_config_modal_')) {
         const targetChannelId = interaction.customId.replace('open_config_modal_', '');
 
@@ -156,7 +161,6 @@ client.on('interactionCreate', async interaction => {
             .setCustomId(`ticket_config_modal_${targetChannelId}`)
             .setTitle('Menu Categories Setup');
 
-        // Ku dar sanduuqyo ay ku qoraan qaybaha (Kaliya xaddid 5 qaybood)
         const cat1 = new TextInputBuilder().setCustomId('cat_1').setLabel('Category 1 (Tusaale: General Question)').setStyle(TextInputStyle.Short).setRequired(true);
         const cat2 = new TextInputBuilder().setCustomId('cat_2').setLabel('Category 2 (Tusaale: Engine Issues)').setStyle(TextInputStyle.Short).setRequired(false);
         const cat3 = new TextInputBuilder().setCustomId('cat_3').setLabel('Category 3 (Tusaale: Reseller Apply)').setStyle(TextInputStyle.Short).setRequired(false);
@@ -172,7 +176,6 @@ client.on('interactionCreate', async interaction => {
         await interaction.showModal(modal);
     }
 
-    // B. MARKA ADMIN-KU BUUXIYO FOOMKA (MODAL SUBMIT)
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_config_modal_')) {
         await interaction.deferReply({ ephemeral: true });
         const targetChannelId = interaction.customId.replace('ticket_config_modal_', '');
@@ -183,7 +186,7 @@ client.on('interactionCreate', async interaction => {
             interaction.fields.getTextInputValue('cat_2'),
             interaction.fields.getTextInputValue('cat_3'),
             interaction.fields.getTextInputValue('cat_4')
-        ].filter(Boolean); // Meelihii marnaa iska reeb
+        ].filter(Boolean);
 
         try {
             const res = await pgClient.query('SELECT embed_title, embed_desc FROM tickets WHERE guild_id = $1', [guild.id]);
@@ -199,7 +202,6 @@ client.on('interactionCreate', async interaction => {
                 .setCustomId('ticket_select_menu')
                 .setPlaceholder('Select your Support Ticket');
 
-            // Ku dhis menu-ga wixii uu Admin-ku soo qoray
             categories.forEach((cat, index) => {
                 selectMenu.addOptions(
                     new StringSelectMenuOptionBuilder()
@@ -219,7 +221,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // C. MARKA USER-KU WAX KA DOORTO MENU-KA CUSTOM-KA AH
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
         await interaction.deferReply({ ephemeral: true });
         const selectedValue = interaction.values[0];
@@ -257,7 +258,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // D. BUTTON CLOSE TICKET
     if (interaction.isButton() && interaction.customId === 'close_ticket_btn') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return interaction.reply({ content: '❌ Kaliya Maamulayaasha ayaa xiri kara ticket-ka!', ephemeral: true });
