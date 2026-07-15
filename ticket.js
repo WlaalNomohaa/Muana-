@@ -1,50 +1,104 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    Client,
+    GatewayIntentBits,
+    Partials,
+    Events,
+    SlashCommandBuilder,
+    PermissionsBitField
+} = require("discord.js");
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const fs = require("fs");
 
-const commands = [
-    new SlashCommandBuilder().setName('setup-ticket').setDescription('Setup Tickets')
-        .addChannelOption(o => o.setName('channel').setDescription('Dooro channel').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addStringOption(o => o.setName('title').setDescription('Cinwaanka').setRequired(true))
-        .addStringOption(o => o.setName('description').setDescription('Sharaxaadda').setRequired(true)),
-    new SlashCommandBuilder().setName('setup-verify').setDescription('Setup Verify')
-        .addChannelOption(o => o.setName('channel').setDescription('Dooro channel').setRequired(true).addChannelTypes(ChannelType.GuildText))
-        .addStringOption(o => o.setName('description').setDescription('Sharaxaadda').setRequired(true))
-].map(c => c.toJSON());
-
-client.once('ready', async () => {
-    console.log(`Bot is active: ${client.user.tag}`);
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+// =====================
+// Client Setup
+// =====================
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages
+    ],
+    partials: [
+        Partials.Channel
+    ]
 });
 
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-    await interaction.deferReply({ ephemeral: true });
+// =====================
+// Database
+// =====================
+const DB = "./ticket.json";
 
-    const { options, guild } = interaction;
+if (!fs.existsSync(DB)) {
+    fs.writeFileSync(DB, JSON.stringify({}, null, 2));
+}
 
-    if (interaction.commandName === 'setup-ticket') {
-        const channel = options.getChannel('channel');
-        const embed = new EmbedBuilder().setTitle(options.getString('title')).setDescription(options.getString('description')).setColor('Blue');
-        const row = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId('ticket_select_menu').setPlaceholder('Dooro nooca ticket-ka')
-                .addOptions([{ label: 'General Support', value: 'general' }, { label: 'Report', value: 'report' }])
-        );
-        await channel.send({ embeds: [embed], components: [row] });
-        await interaction.editReply({ content: `✅ Ticket-ka waa la diyaariyay!` });
-    }
+let ticketConfig = JSON.parse(
+    fs.readFileSync(DB, "utf8")
+);
 
-    if (interaction.commandName === 'setup-verify') {
-        const channel = options.getChannel('channel');
-        const embed = new EmbedBuilder().setTitle('Verification').setDescription(options.getString('description')).setColor('Green');
-        const row = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId('verify_menu').setPlaceholder('Guji si aad u verify-garayso')
-                .addOptions([{ label: 'Verify', value: 'verify_user' }])
-        );
-        await channel.send({ embeds: [embed], components: [row] });
-        await interaction.editReply({ content: `✅ Nidaamka Verify-ga waa la diyaariyay!` });
-    }
+function saveDB() {
+    fs.writeFileSync(
+        DB,
+        JSON.stringify(ticketConfig, null, 2)
+    );
+}
+
+
+// =====================
+// Slash Command Register
+// =====================
+client.once(Events.ClientReady, async () => {
+
+    console.log(`${client.user.tag} Online`);
+
+    const commands = [
+
+        new SlashCommandBuilder()
+            .setName("setup-ticket")
+            .setDescription("Setup Ticket System")
+
+            .addChannelOption(option =>
+                option
+                .setName("channel")
+                .setDescription("Channel-ka ticket panel")
+                .setRequired(true)
+            )
+
+            .addStringOption(option =>
+                option
+                .setName("message")
+                .setDescription("Farinta panel-ka")
+                .setRequired(true)
+            )
+
+            .addStringOption(option =>
+                option
+                .setName("button")
+                .setDescription("Magaca button-ka")
+                .setRequired(true)
+            )
+
+            .addStringOption(option =>
+                option
+                .setName("ticketmessage")
+                .setDescription("Farinta ticket-ka cusub")
+                .setRequired(true)
+            )
+
+            .setDefaultMemberPermissions(
+                PermissionsBitField.Flags.Administrator
+            )
+            .toJSON()
+
+    ];
+
+
+    await client.application.commands.set(commands);
+
+    console.log("Commands Registered");
 });
 
-client.login(process.env.DISCORD_TOKEN);
+
+// =====================
+// Login
+// =====================
+client.login(process.env.TOKEN);
