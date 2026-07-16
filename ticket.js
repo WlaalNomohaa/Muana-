@@ -32,7 +32,7 @@ pgClient.on('error', (err) => {
 pgClient.connect()
     .then((c) => {
         c.release();
-        console.log('🎯 Si guul leh ayuu bot-ku ugu xirmay Postgres Database!');
+        console.log('🎯 Database Connected!');
         return pgClient.query(`
             CREATE TABLE IF NOT EXISTS ticket_config (
                 guild_id TEXT PRIMARY KEY,
@@ -91,7 +91,7 @@ const makeEmbed = ({ color = COLORS.brand, title, description, fields, thumbnail
 // ================== SLASH COMMANDS ==================
 const commands = [
     new SlashCommandBuilder()
-        .setName('ticketsetup')
+        .setName('setup-ticket')
         .setDescription('Diyaari Nidaamka Ticket-ka server-kan (Admins Only).')
         .addChannelOption(option =>
             option.setName('channel')
@@ -126,16 +126,16 @@ const commands = [
                 .addChannelTypes(ChannelType.GuildText)),
 
     new SlashCommandBuilder()
-        .setName('ticketclose')
+        .setName('close-ticket')
         .setDescription('Xir ticket-ka aad hadda ku jirto (Admins Only).'),
 
     new SlashCommandBuilder()
-        .setName('ticketadd')
+        .setName('add-ticket')
         .setDescription('Ku dar xubin ticket-ka aad hadda ku jirto (Admins Only).')
         .addUserOption(option => option.setName('user').setDescription('Xubinta la darayo').setRequired(true)),
 
     new SlashCommandBuilder()
-        .setName('ticketremove')
+        .setName('remove-ticket')
         .setDescription('Ka saar xubin ticket-ka aad hadda ku jirto (Admins Only).')
         .addUserOption(option => option.setName('user').setDescription('Xubinta laga saarayo').setRequired(true)),
 
@@ -172,7 +172,7 @@ const getTicketRow = () => {
 
 // ================== READY ==================
 client.once('ready', async () => {
-    console.log(`🎉 Ticket Bot waa diyaar! ${client.user.tag}`);
+    console.log(`Bot-ka Muana 🚩#7831 wuu shaqaynayaa!`);
     client.user.setActivity('Tickets 🎫', { type: ActivityType.Watching });
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -203,8 +203,8 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        // --- /ticketsetup ---
-        if (commandName === 'ticketsetup') {
+        // --- /setup-ticket ---
+        if (commandName === 'setup-ticket') {
             if (!isAdmin(member)) {
                 return interaction.reply({
                     embeds: [makeEmbed({ color: COLORS.error, description: '❌ Kaliya Maamulayaasha ayaa isticmaali kara amarkan.' })],
@@ -253,13 +253,13 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
-        // --- /ticketclose ---
-        if (commandName === 'ticketclose') {
+        // --- /close-ticket ---
+        if (commandName === 'close-ticket') {
             return closeTicket(interaction);
         }
 
-        // --- /ticketadd ---
-        if (commandName === 'ticketadd') {
+        // --- /add-ticket ---
+        if (commandName === 'add-ticket') {
             if (!isAdmin(member)) {
                 return interaction.reply({ embeds: [makeEmbed({ color: COLORS.error, description: '❌ Kaliya Maamulayaasha ayaa isticmaali kara amarkan.' })], ephemeral: true });
             }
@@ -280,8 +280,8 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
-        // --- /ticketremove ---
-        if (commandName === 'ticketremove') {
+        // --- /remove-ticket ---
+        if (commandName === 'remove-ticket') {
             if (!isAdmin(member)) {
                 return interaction.reply({ embeds: [makeEmbed({ color: COLORS.error, description: '❌ Kaliya Maamulayaasha ayaa isticmaali kara amarkan.' })], ephemeral: true });
             }
@@ -314,11 +314,10 @@ client.on('interactionCreate', async interaction => {
             try {
                 const cfgRes = await pgClient.query('SELECT * FROM ticket_config WHERE guild_id = $1', [guild.id]);
                 if (cfgRes.rows.length === 0) {
-                    return interaction.editReply({ embeds: [makeEmbed({ color: COLORS.error, description: '❌ Nidaamka Ticket-ka wali lama diyaarin. Fadlan admin-ku ha isticmaalo /ticketsetup.' })] });
+                    return interaction.editReply({ embeds: [makeEmbed({ color: COLORS.error, description: '❌ Nidaamka Ticket-ka wali lama diyaarin. Fadlan admin-ku ha isticmaalo /setup-ticket.' })] });
                 }
                 const cfg = cfgRes.rows[0];
 
-                // Hubi in qofku hore u haysto ticket furan
                 const existing = await pgClient.query(
                     `SELECT channel_id FROM tickets WHERE guild_id = $1 AND opener_id = $2 AND status = 'open'`,
                     [guild.id, user.id]
@@ -335,8 +334,6 @@ client.on('interactionCreate', async interaction => {
                 );
                 const ticketNumber = String(counterRes.rows[0].ticket_counter).padStart(4, '0');
 
-                // Kaliya Opener-ka + Admins (Admins si otomaatig ah ayay u arki karaan permission bypass darteed,
-                // laakiin waxaan si sax ah u siinaynaa mention_role sidoo kale si ay u arki karaan)
                 const ticketChannel = await guild.channels.create({
                     name: `ticket-${ticketNumber}`,
                     type: ChannelType.GuildText,
@@ -403,7 +400,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// ================== CLOSE TICKET LOGIC (Admins Only — isticmaalo button iyo /ticketclose labaduba) ==================
+// ================== CLOSE TICKET LOGIC (Admins Only) ==================
 async function closeTicket(interaction) {
     const channel = interaction.channel;
 
