@@ -127,7 +127,7 @@ const commands = [
 
 bot.once('ready', async () => {
   console.log('✅ Bot-ku waa ready! Wuxuu ku login gareeyay: ' + bot.user.tag);
-  bot.user.setActivity('Maamulka Server-ka', { type: ActivityType.Watching });
+  bot.user.setActivity('💃', { type: ActivityType.Watching });
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
