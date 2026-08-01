@@ -8,7 +8,6 @@ const {
   EmbedBuilder 
 } = require('discord.js');
 
-// 1. Habaynta Bot-ka
 const bot = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -18,13 +17,10 @@ const bot = new Client({
   ]
 });
 
-// Kaydinta Nidaamka Anti-link iyo Auto-role
-let antiLinkStatus = {}; // { guildId: true/false }
-let autoRoles = {};      // { guildId: roleId }
+let antiLinkStatus = {}; 
+let autoRoles = {};      
 
-// 2. Abuurista Amarrada Slash Commands (/)
 const commands = [
-  // /help (Leh options: search & ephemeral siday sawirada ka muuqdaan)
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('Tusa amarrada bot-ka iyo caawinaad')
@@ -37,7 +33,6 @@ const commands = [
         .setDescription('Mise fariinta adiga kaliya ayaad rabtaa inaad aragto? (True/False)')
         .setRequired(false)),
 
-  // /add-role (Lagu siiyo User-ka Role gaar ah)
   new SlashCommandBuilder()
     .setName('add-role')
     .setDescription('Siiyo User role gaar ah')
@@ -45,7 +40,6 @@ const commands = [
     .addRoleOption(opt => opt.setName('role').setDescription('Role-ka la siinayo').setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
-  // /remove-role (Laga qaado User-ka Role-ka)
   new SlashCommandBuilder()
     .setName('remove-role')
     .setDescription('Ka qaad User role-ka uu leeyahay')
@@ -53,7 +47,6 @@ const commands = [
     .addRoleOption(opt => opt.setName('role').setDescription('Role-ka laga qaadayo').setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
-  // /move (Kalka xaaqista ama rarida User/Voice Channel)
   new SlashCommandBuilder()
     .setName('move')
     .setDescription('U rar user-ka ama channel-ka meel kale')
@@ -61,7 +54,6 @@ const commands = [
     .addChannelOption(opt => opt.setName('channel').setDescription('Voice Channel-ka loo rarayo').setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers),
 
-  // /antilink (On ama Off looga dhigo xakamaynta links-ka)
   new SlashCommandBuilder()
     .setName('antilink')
     .setDescription('Ka shid ama ka dami server-ka xakamaynta link-yada')
@@ -75,20 +67,17 @@ const commands = [
         ))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-  // /setup (Otomaatig u sameeyo qeybaha bot-ka)
   new SlashCommandBuilder()
     .setName('setup')
     .setDescription('Otomaatig u samee habaynta server-ka iyo bot-ka')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-  // /id (Kuu sheegaya User ID ama Role ID)
   new SlashCommandBuilder()
     .setName('id')
     .setDescription('Soo saar ID-ga User-ka ama Role-ka')
     .addUserOption(opt => opt.setName('user').setDescription('User-ka aad ID-giisa u baahan tahay').setRequired(false))
     .addRoleOption(opt => opt.setName('role').setDescription('Role-ka aad ID-giisa u baahan tahay').setRequired(false)),
 
-  // /autorole (U door Role qof walba oo server-ka soo biira si toos ah loo siiyo)
   new SlashCommandBuilder()
     .setName('autorole')
     .setDescription('U door role qof walba oo soo biira si toos ah loo siiyo')
@@ -96,7 +85,6 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 ].map(cmd => cmd.toJSON());
 
-// 3. Marka Bot-ku shaqo bilaabo (Register Slash Commands)
 bot.once('ready', async () => {
   console.log(`✅ Bot-ku waa ready! Wuxuu ku login gareeyay: ${bot.user.tag}`);
 
@@ -110,122 +98,127 @@ bot.once('ready', async () => {
   }
 });
 
-// 4. Qabashada Qaybaha Amarrada (Interaction Handling)
 bot.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, options, guild } = interaction;
 
-  // --- /help ---
-  if (commandName === 'help') {
-    const searchQuery = options.getString('search') || 'Bilaash';
-    const isEphemeral = options.getBoolean('ephemeral') ?? true; // Default: True (Adiga kaliya ayaa arkayo)
+  // Si looga hortago "The application did not respond", halkan ayaan kaga dhigaynaa deferReply
+  const isEphemeral = options.getBoolean('ephemeral') ?? true;
 
-    const embed = new EmbedBuilder()
-      .setTitle('📚 Bot Help Center')
-      .setDescription(`Natiijada raadinta: **${searchQuery}**\n\n` +
-        '`/help` - Amarrada iyo caawinaada\n' +
-        '`/add-role` - Siiyo user role\n' +
-        '`/remove-role` - Ka qaad user role\n' +
-        '`/move` - U rar user Voice channel kale\n' +
-        '`/antilink` - Ka shid/dami xakamaynta links-ka\n' +
-        '`/setup` - Otomaatig habaynta server-ka\n' +
-        '`/id` - Soo saar User ama Role ID\n' +
-        '`/autorole` - Habee auto-role-ka xubnaha cusub')
-      .setColor('#5865F2');
+  try {
+    // Si toos ah Discord u ogeysii in bot-ku uu ku guda jiro diyaarinta jawaabta
+    await interaction.deferReply({ ephemeral: isEphemeral });
 
-    await interaction.reply({ embeds: [embed], ephemeral: isEphemeral });
-  }
+    if (commandName === 'help') {
+      const searchQuery = options.getString('search') || 'Bilaash';
 
-  // --- /add-role ---
-  else if (commandName === 'add-role') {
-    const targetUser = options.getMember('user');
-    const role = options.getRole('role');
+      const embed = new EmbedBuilder()
+        .setTitle('📚 Bot Help Center')
+        .setDescription(`Natiijada raadinta: **${searchQuery}**\n\n` +
+          '`/help` - Amarrada iyo caawinaada\n' +
+          '`/add-role` - Siiyo user role\n' +
+          '`/remove-role` - Ka qaad user role\n' +
+          '`/move` - U rar user Voice channel kale\n' +
+          '`/antilink` - Ka shid/dami xakamaynta links-ka\n' +
+          '`/setup` - Otomaatig habaynta server-ka\n' +
+          '`/id` - Soo saar User ama Role ID\n' +
+          '`/autorole` - Habee auto-role-ka xubnaha cusub')
+        .setColor('#5865F2');
 
-    await targetUser.roles.add(role);
-    await interaction.reply({ content: `✅ Waxaa si guul leh role-ka **${role.name}** loogu daray ${targetUser.user.tag}.`, ephemeral: true });
-  }
-
-  // --- /remove-role ---
-  else if (commandName === 'remove-role') {
-    const targetUser = options.getMember('user');
-    const role = options.getRole('role');
-
-    await targetUser.roles.remove(role);
-    await interaction.reply({ content: `🗑️ Waxaa role-ka **${role.name}** ka qaaday ${targetUser.user.tag}.`, ephemeral: true });
-  }
-
-  // --- /move ---
-  else if (commandName === 'move') {
-    const targetUser = options.getMember('user');
-    const channel = options.getChannel('channel');
-
-    if (!targetUser.voice.channel) {
-      return interaction.reply({ content: '❌ User-ku kuma jiro Voice Channel!', ephemeral: true });
+      await interaction.editReply({ embeds: [embed] });
     }
 
-    await targetUser.voice.setChannel(channel);
-    await interaction.reply({ content: `🚚 ${targetUser.user.tag} waxaa loo raray channel-ka **${channel.name}**.`, ephemeral: true });
-  }
+    else if (commandName === 'add-role') {
+      const targetUser = options.getMember('user');
+      const role = options.getRole('role');
 
-  // --- /antilink ---
-  else if (commandName === 'antilink') {
-    const status = options.getString('status');
-    antiLinkStatus[guild.id] = (status === 'on');
+      await targetUser.roles.add(role);
+      await interaction.editReply({ content: `✅ Waxaa si guul leh role-ka **${role.name}** loogu daray ${targetUser.user.tag}.` });
+    }
 
-    await interaction.reply({ 
-      content: `🔒 Anti-link waxaa looga dhigay: **${status.toUpperCase()}**`, 
-      ephemeral: true 
-    });
-  }
+    else if (commandName === 'remove-role') {
+      const targetUser = options.getMember('user');
+      const role = options.getRole('role');
 
-  // --- /setup ---
-  else if (commandName === 'setup') {
-    await interaction.reply({ content: '⚙️ Habaynta otomaatiga ah ee bot-ka waa lagu guuleystay!', ephemeral: true });
-  }
+      await targetUser.roles.remove(role);
+      await interaction.editReply({ content: `🗑️ Waxaa role-ka **${role.name}** ka qaaday ${targetUser.user.tag}.` });
+    }
 
-  // --- /id ---
-  else if (commandName === 'id') {
-    const targetUser = options.getUser('user');
-    const targetRole = options.getRole('role');
+    else if (commandName === 'move') {
+      const targetUser = options.getMember('user');
+      const channel = options.getChannel('channel');
 
-    if (targetUser) {
-      await interaction.reply({ content: `🆔 ID-ga User-ka **${targetUser.tag}** waa: \`${targetUser.id}\``, ephemeral: true });
-    } else if (targetRole) {
-      await interaction.reply({ content: `🆔 ID-ga Role-ka **${targetRole.name}** waa: \`${targetRole.id}\``, ephemeral: true });
+      if (!targetUser.voice.channel) {
+        return interaction.editReply({ content: '❌ User-ku kuma jiro Voice Channel!' });
+      }
+
+      await targetUser.voice.setChannel(channel);
+      await interaction.editReply({ content: `🚚 ${targetUser.user.tag} waxaa loo raray channel-ka **${channel.name}**.` });
+    }
+
+    else if (commandName === 'antilink') {
+      const status = options.getString('status');
+      antiLinkStatus[guild.id] = (status === 'on');
+
+      await interaction.editReply({ content: `🔒 Anti-link waxaa looga dhigay: **${status.toUpperCase()}**` });
+    }
+
+    else if (commandName === 'setup') {
+      await interaction.editReply({ content: '⚙️ Habaynta otomaatiga ah ee bot-ka waa lagu guuleystay!' });
+    }
+
+    else if (commandName === 'id') {
+      const targetUser = options.getUser('user');
+      const targetRole = options.getRole('role');
+
+      if (targetUser) {
+        await interaction.editReply({ content: `🆔 ID-ga User-ka **${targetUser.tag}** waa: \`${targetUser.id}\`` });
+      } else if (targetRole) {
+        await interaction.editReply({ content: `🆔 ID-ga Role-ka **${targetRole.name}** waa: \`${targetRole.id}\`` });
+      } else {
+        await interaction.editReply({ content: `🆔 ID-gaaga: \`${interaction.user.id}\` | Server ID: \`${guild.id}\`` });
+      }
+    }
+
+    else if (commandName === 'autorole') {
+      const role = options.getRole('role');
+      autoRoles[guild.id] = role.id;
+
+      await interaction.editReply({ content: `🤖 Wixii hadda ka dambeeya qof walba oo soo biira wuxuu si otomaatig ah u heli doonaa role-ka **${role.name}**.` });
+    }
+  } catch (err) {
+    console.error(`❌ Khalad ayaa ka dhacay amarka /${commandName}:`, err.message);
+    const errorMsg = '❌ Bot-ku ma laha Permission-ka uu amarkan ku fuliyo (sida Role-ka oo ka sareeya ama Permission vambaysan)!';
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content: errorMsg });
     } else {
-      await interaction.reply({ content: `🆔 ID-gaaga: \`${interaction.user.id}\` | Server ID: \`${guild.id}\``, ephemeral: true });
+      await interaction.reply({ content: errorMsg, ephemeral: true });
     }
-  }
-
-  // --- /autorole ---
-  else if (commandName === 'autorole') {
-    const role = options.getRole('role');
-    autoRoles[guild.id] = role.id;
-
-    await interaction.reply({ content: `🤖 Wixii hadda ka dambeeya qof walba oo soo biira wuxuu si otomaatig ah u heli doonaa role-ka **${role.name}**.`, ephemeral: true });
   }
 });
 
-// 5. Anti-link System Event (Qabashada fariimaha qoraalka ah)
 bot.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
-  const isAntiLinkOn = antiLinkStatus[message.guild.id];
-  if (isAntiLinkOn) {
-    const linkRegex = /(https?:\/\/[^\s]+)/g;
-    if (linkRegex.test(message.content)) {
-      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        await message.delete();
-        message.channel.send(`⚠️ ${message.author}, Server-kan laguma soo diri karo wax Link ah!`).then(msg => {
-          setTimeout(() => msg.delete(), 5000);
-        });
+  try {
+    const isAntiLinkOn = antiLinkStatus[message.guild.id];
+    if (isAntiLinkOn) {
+      const linkRegex = /(https?:\/\/[^\s]+)/g;
+      if (linkRegex.test(message.content)) {
+        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          await message.delete();
+          message.channel.send(`⚠️ ${message.author}, Server-kan laguma soo diri karo wax Link ah!`).then(msg => {
+            setTimeout(() => msg.delete(), 5000);
+          });
+        }
       }
     }
+  } catch (err) {
+    console.error('Qalad ka dhacay Anti-link:', err.message);
   }
 });
 
-// 6. Auto-Role Event (Xubnaha cusub ee soo biiraya)
 bot.on('guildMemberAdd', async (member) => {
   const autoRoleId = autoRoles[member.guild.id];
   if (autoRoleId) {
@@ -233,10 +226,14 @@ bot.on('guildMemberAdd', async (member) => {
       await member.roles.add(autoRoleId);
       console.log(`Auto-role waxaa la siiyay: ${member.user.tag}`);
     } catch (err) {
-      console.error('Qalad ka dhacay siinta auto-role-ka:', err);
+      console.error('Qalad ka dhacay siinta auto-role-ka:', err.message);
     }
   }
 });
 
-// Login-ka Bot-ka
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Rejection:', reason);
+});
+
 bot.login(process.env.DISCORD_TOKEN);
+
