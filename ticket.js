@@ -1,22 +1,7 @@
-const { Client: DBClient } = require('pg');
-const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 
-// 1. Hubinta iyo Xiriirka PostgreSQL Database (Railway)
-const dbClient = new DBClient({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Wuxuu ka hortagbaa SSL error-ka Railway Cloud
-  }
-});
-
-dbClient.connect()
-  .then(() => console.log('✅ PostgreSQL database-ka waa lagu xirmay si guul leh!'))
-  .catch(err => {
-    console.error('❌ Khalad ayaa dhacay marka lala xiriirayay Postgres:', err.message);
-  });
-
-// 2. Habaynta Discord Bot
-const bot = new DiscordClient({
+// Habaynta Discord Bot-ka
+const bot = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
@@ -24,19 +9,20 @@ const bot = new DiscordClient({
   ]
 });
 
-// Line-kan oo la saxay backticks-kiisa
+// Marka uu bot-ku online noqdo
 bot.once('ready', () => {
-  console.log(🤖 Bot-ku waa online! Wuxuu ku login gareeyay: ${bot.user.tag});
+  console.log(`✅ Bot-ku si buuxda ayuu u shaqaynayaa! Wuxuu ku login gareeyay: ${bot.user.tag}`);
 });
 
 // Amarka tijaabada ah
 bot.on('messageCreate', async (message) => {
+  // Ka hortag in bot-ku uu is jawaabo
   if (message.author.bot) return;
 
   if (message.content === '!ping') {
-    message.reply('🏓 Pong! Bot-ku waa 24/7 online saddexda platform-ba (GitHub, Kinesis, Railway).');
+    message.reply('🏓 Pong! Bot-ku waa 24/7 online oo la tijaabiyay.');
   }
 });
 
-// 3. Login-ka Bot-ka iyada oo la adeegsanayo Environment Variable
+// Login-ka iyada oo la adeegsanayo Environment Variable
 bot.login(process.env.DISCORD_TOKEN);
