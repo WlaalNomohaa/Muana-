@@ -9,7 +9,8 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ActivityType // <--- Tani ayaa lagu daray
+  ActivityType,
+  ChannelType
 } = require('discord.js');
 
 const bot = new Client({
@@ -23,6 +24,7 @@ const bot = new Client({
 
 let antiLinkStatus = {}; 
 let autoRoles = {};      
+let linkWarnings = {};   // Key: `${guildId}-${userId}`, Value: Count
 
 // Liiska Search-ka ee /help
 const helpOptions = [
@@ -30,7 +32,8 @@ const helpOptions = [
   'How This Work Bot?',
   'How to add Bot Server',
   'All Commands',
-  'Warning'
+  'Warning',
+  'Another Problem'
 ];
 
 const commands = [
@@ -48,7 +51,7 @@ const commands = [
         .setDescription('Adiga kaliya mise server-ka oo dhan?')
         .setRequired(false)),
 
-  // 2. MOVE COMMAND (User -> Channel kasta)
+  // 2. MOVE COMMAND
   new SlashCommandBuilder()
     .setName('move')
     .setDescription('U rar user channel kasta oo aad rabto')
@@ -124,8 +127,6 @@ const commands = [
 
 bot.once('ready', async () => {
   console.log('✅ Bot-ku waa ready! Wuxuu ku login gareeyay: ' + bot.user.tag);
-
-  // 🎯 SET WATCHING STATUS HERE:
   bot.user.setActivity('Maamulka Server-ka', { type: ActivityType.Watching });
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -148,6 +149,19 @@ bot.on('interactionCreate', async (interaction) => {
       await interaction.respond(
         filtered.map(choice => ({ name: choice, value: choice }))
       );
+    }
+    return;
+  }
+
+  // Handle Button Clicks (Admin Only)
+  if (interaction.isButton()) {
+    if (interaction.customId === 'admin_fix_issue') {
+      // Check if user is Admin or the specified Admin ID
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && interaction.user.id !== '1483111151469465722') {
+        return interaction.reply({ content: '❌ Batoonkani waxaa isticmaali kara oo keliya **Admin-ka**!', ephemeral: true });
+      }
+
+      await interaction.update({ content: '✅ Xaaladdan waxaa xaliyay/furey Admin-ka. Mahadsanid!', components: [] });
     }
     return;
   }
@@ -186,8 +200,20 @@ bot.on('interactionCreate', async (interaction) => {
         components = [row];
       } 
       else if (searchQuery === 'Warning') {
-        descriptionText = '⚠️ **Bot Warnings & Limits:**\n\n- Bot-ku ma siin karo ama ma ka qaadi karo role ka sareeya Role-kiisa.\n- Bot-ku wuxuu u baahan yahay **Administrator Permission** si uu amarrada oo dhan u fuliyo.';
-      } 
+        descriptionText = '⚠️ **Bot Warnings & Limits:**\n\n- Bot-ku ma siin karo ama ma ka qaadi karo role ka sareeya Role-kiisa.\n- Bot-ku wuxuu u baahanahay **Administrator Permission** si uu amarrada oo dhan u fuliyo.';
+      }
+      else if (searchQuery === 'Another Problem') {
+        descriptionText = '❓ **Another Problem / Caawinaad Dheeraad ah:**\n\nHaddii aad u baahan tahay caawinaad kale ama waxyaalo kale oo ku saabsan shaqaynta bot-ka, fadlan la xiriir milkiilaha/admin-ka bot-ka adiga oo riixaya batoonka hoose. \n\nAdmin ID: `1483111151469465722`\nMahadsanid!';
+
+        // Button oo u tagaya Profile-kaaga ama Server-ka Support-ka
+        const profileButton = new ButtonBuilder()
+          .setLabel('La Xiriir Admin-ka')
+          .setStyle(ButtonStyle.Link)
+          .setURL('https://discord.com/users/1483111151469465722');
+
+        const row = new ActionRowBuilder().addComponents(profileButton);
+        components = [row];
+      }
       else { 
         descriptionText = '📜 **All Available Commands:**\n\n' +
           '`/help` - Tusa caawinaada iyo amarrada\n' +
@@ -215,7 +241,7 @@ bot.on('interactionCreate', async (interaction) => {
       const targetUser = options.getMember('user');
       const targetChannel = options.getChannel('channel');
 
-      if (targetUser.voice && targetChannel.type === 2) { 
+      if (targetUser.voice && targetChannel.type === ChannelType.GuildVoice) { 
         await targetUser.voice.setChannel(targetChannel);
         await interaction.editReply({ content: `🚚 Waxaa si guul leh **${targetUser.user.tag}** loogu raray Voice Channel-ka **${targetChannel.name}**.` });
       } else {
@@ -317,7 +343,7 @@ bot.on('interactionCreate', async (interaction) => {
   }
 });
 
-// Message Event (Anti-link)
+// Message Event (Advanced Anti-link System)
 bot.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -327,10 +353,51 @@ bot.on('messageCreate', async (message) => {
       const linkRegex = /(https?:\/\/[^\s]+)/g;
       if (linkRegex.test(message.content)) {
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          await message.delete();
-          message.channel.send(`⚠️ ${message.author}, Server-kan laguma soo diri karo wax Link ah!`).then(msg => {
-            setTimeout(() => msg.delete(), 5000);
-          });
+          const key = `${message.guild.id}-${message.author.id}`;
+          linkWarnings[key] = (linkWarnings[key] || 0) + 1;
+          const count = linkWarnings[key];
+
+          // Tirtir fariinta
+          await message.delete().catch(() => {});
+
+          if (count === 1 || count === 2) {
+            // Digtooni kaliya (Warning)
+            message.channel.send(`⚠️ ${message.author}, Digtooni (${count}/3): Server-kan laguma soo diri karo link-yo!`).then(msg => {
+              setTimeout(() => msg.delete().catch(() => {}), 5000);
+            });
+          } 
+          else if (count === 3) {
+            // Marka 3-aad: 30 Seconds Timeout
+            try {
+              await message.member.timeout(30 * 1000, 'Anti-link: 3 jeer ayuu link soo diray');
+              message.channel.send(`⏳ ${message.author}, Waxaa lagu siiyay **30 seconds timeout** ah sababtoo ah waxaad soo dirtay link-yo digniin ka dib.`).then(msg => {
+                setTimeout(() => msg.delete().catch(() => {}), 6000);
+              });
+            } catch (e) {
+              console.error('Timeout error:', e);
+            }
+          } 
+          else {
+            // In ka badan 3 jeer: Toos fariimaha looga xiro (Communication Disabled / Mute)
+            try {
+              // Timeout dheeraad ah ama ka joojin fariimaha (tusaale 1 Saacadood timeout ah si uusan u hadlin)
+              await message.member.timeout(60 * 60 * 1000, 'Anti-link: Si Joogto ah ayuu u jabiyay xeerka link-yada');
+              
+              const adminButton = new ButtonBuilder()
+                .setCustomId('admin_fix_issue')
+                .setLabel('Furo / Xalli (Admin Only)')
+                .setStyle(ButtonStyle.Danger);
+
+              const row = new ActionRowBuilder().addComponents(adminButton);
+
+              message.channel.send({
+                content: `🚨 ${message.author}, Fariimahaaga waa la xiray sababtoo ah waad ku celcelisay dirista link-yada! Fadlan sug ilaa **Admin** uu ka xalliyo arrintan.`,
+                components: [row]
+              });
+            } catch (e) {
+              console.error('Mute/Timeout error:', e);
+            }
+          }
         }
       }
     }
