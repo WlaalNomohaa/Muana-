@@ -20,17 +20,27 @@ const bot = new Client({
 let antiLinkStatus = {}; 
 let autoRoles = {};      
 
+// Liiska doorashooyinka ee soo baxaya (Autocomplete Options)
+const helpOptions = [
+  'Setup',
+  'Commands',
+  'How do I create a panel?',
+  'How does claiming work?',
+  'How do I limit the number of tickets a user can create?'
+];
+
 const commands = [
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('Tusa amarrada bot-ka iyo caawinaad')
     .addStringOption(option => 
       option.setName('search')
-        .setDescription('Natiijada ama qeybta aad raadinayso')
-        .setRequired(false))
+        .setDescription('Phrase to search for')
+        .setRequired(false)
+        .setAutocomplete(true)) // Kani wuxuu keenayaa liiska doorashooyinka
     .addBooleanOption(option => 
       option.setName('ephemeral')
-        .setDescription('Mise fariinta adiga kaliya ayaad rabtaa inaad aragto? (True/False)')
+        .setDescription('Adiga kaliya mise server-ka oo dhan?')
         .setRequired(false)),
 
   new SlashCommandBuilder()
@@ -99,31 +109,60 @@ bot.once('ready', async () => {
 });
 
 bot.on('interactionCreate', async (interaction) => {
+  // 1. Qabso Autocomplete Suggestion List-ka (Marka qofku uu qorayo /help search)
+  if (interaction.isAutocomplete()) {
+    if (interaction.commandName === 'help') {
+      const focusedValue = interaction.options.getFocused();
+      const filtered = helpOptions.filter(choice => 
+        choice.toLowerCase().includes(focusedValue.toLowerCase())
+      );
+      await interaction.respond(
+        filtered.map(choice => ({ name: choice, value: choice }))
+      );
+    }
+    return;
+  }
+
+  // 2. Qabso Amarrada Caadiga ah
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, options, guild } = interaction;
-
-  // Si looga hortago "The application did not respond", halkan ayaan kaga dhigaynaa deferReply
   const isEphemeral = options.getBoolean('ephemeral') ?? true;
 
   try {
-    // Si toos ah Discord u ogeysii in bot-ku uu ku guda jiro diyaarinta jawaabta
     await interaction.deferReply({ ephemeral: isEphemeral });
 
     if (commandName === 'help') {
-      const searchQuery = options.getString('search') || 'Bilaash';
+      const searchQuery = options.getString('search') || 'General';
 
-      const embed = new EmbedBuilder()
-        .setTitle('📚 Bot Help Center')
-        .setDescription(`Natiijada raadinta: **${searchQuery}**\n\n` +
+      let descriptionText = '';
+
+      // Tafaasiisha ku saabsan doorasho kasta oo la sameeyo
+      if (searchQuery === 'Setup') {
+        descriptionText = '⚙️ **Setup Guide:**\nUnoqo Administrator server-ka, ka dibna adeegso `/setup` si uu bot-ku otomaatig ugu habeeyo kuraasta iyo shaqada server-ka.';
+      } else if (searchQuery === 'Commands') {
+        descriptionText = '📜 **Amarrada Bot-ka:**\n' +
           '`/help` - Amarrada iyo caawinaada\n' +
           '`/add-role` - Siiyo user role\n' +
           '`/remove-role` - Ka qaad user role\n' +
-          '`/move` - U rar user Voice channel kale\n' +
+          '`/move` - U rar user Voice channel\n' +
           '`/antilink` - Ka shid/dami xakamaynta links-ka\n' +
           '`/setup` - Otomaatig habaynta server-ka\n' +
           '`/id` - Soo saar User ama Role ID\n' +
-          '`/autorole` - Habee auto-role-ka xubnaha cusub')
+          '`/autorole` - Habee auto-role-ka';
+      } else if (searchQuery === 'How do I create a panel?') {
+        descriptionText = '🎟️ **Sida loo sameeyo Panel:**\nAdeegso amarka `/setup` si aad u abuurto Ticket Panel cusub oo dadku kaga furi karaan caawinaad.';
+      } else if (searchQuery === 'How does claiming work?') {
+        descriptionText = '👑 **Sida Claiming-ku u shaqeeyo:**\nMarka ticket la furo, Admin-ka ama Staff-ka ayaa rixaya batoonka **Claim** si uu isaga kaliya u maareeyo ticket-kaas.';
+      } else if (searchQuery === 'How do I limit the number of tickets a user can create?') {
+        descriptionText = '🔢 **Xakamaynta Tirada Tickets-ka:**\nQof walba wuxuu furi karaa ugu badnaan **1 Ticket** markiiba ilaa ka hor inta aan la dhiibin ama la xirin ticket-ka hore.';
+      } else {
+        descriptionText = `🔍 **Natiijada Raadinta:** ${searchQuery}\n\n`/help search: Commands` si aad u aragto amarrada oo dhan.`;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`📚 Help Center - ${searchQuery}`)
+        .setDescription(descriptionText)
         .setColor('#5865F2');
 
       await interaction.editReply({ embeds: [embed] });
@@ -236,4 +275,3 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 bot.login(process.env.DISCORD_TOKEN);
-
