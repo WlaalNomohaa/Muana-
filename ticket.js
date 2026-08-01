@@ -20,7 +20,7 @@ const bot = new Client({
 let antiLinkStatus = {}; 
 let autoRoles = {};      
 
-// Liiska doorashooyinka ee soo baxaya (Autocomplete Options)
+// Liiska doorashooyinka ee soo baxaya (Autocomplete)
 const helpOptions = [
   'Setup',
   'Commands',
@@ -37,7 +37,7 @@ const commands = [
       option.setName('search')
         .setDescription('Phrase to search for')
         .setRequired(false)
-        .setAutocomplete(true)) // Kani wuxuu keenayaa liiska doorashooyinka
+        .setAutocomplete(true))
     .addBooleanOption(option => 
       option.setName('ephemeral')
         .setDescription('Adiga kaliya mise server-ka oo dhan?')
@@ -109,7 +109,6 @@ bot.once('ready', async () => {
 });
 
 bot.on('interactionCreate', async (interaction) => {
-  // 1. Qabso Autocomplete Suggestion List-ka (Marka qofku uu qorayo /help search)
   if (interaction.isAutocomplete()) {
     if (interaction.commandName === 'help') {
       const focusedValue = interaction.options.getFocused();
@@ -123,7 +122,6 @@ bot.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  // 2. Qabso Amarrada Caadiga ah
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, options, guild } = interaction;
@@ -137,7 +135,6 @@ bot.on('interactionCreate', async (interaction) => {
 
       let descriptionText = '';
 
-      // Tafaasiisha ku saabsan doorasho kasta oo la sameeyo
       if (searchQuery === 'Setup') {
         descriptionText = '⚙️ **Setup Guide:**\nUnoqo Administrator server-ka, ka dibna adeegso `/setup` si uu bot-ku otomaatig ugu habeeyo kuraasta iyo shaqada server-ka.';
       } else if (searchQuery === 'Commands') {
@@ -157,11 +154,11 @@ bot.on('interactionCreate', async (interaction) => {
       } else if (searchQuery === 'How do I limit the number of tickets a user can create?') {
         descriptionText = '🔢 **Xakamaynta Tirada Tickets-ka:**\nQof walba wuxuu furi karaa ugu badnaan **1 Ticket** markiiba ilaa ka hor inta aan la dhiibin ama la xirin ticket-ka hore.';
       } else {
-        descriptionText = `🔍 **Natiijada Raadinta:** ${searchQuery}\n\n`/help search: Commands` si aad u aragto amarrada oo dhan.`;
+        descriptionText = '🔍 **Natiijada Raadinta:** ' + searchQuery + '\n\nAdeegso `/help search: Commands` si aad u aragto amarrada oo dhan.';
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`📚 Help Center - ${searchQuery}`)
+        .setTitle('📚 Help Center - ' + searchQuery)
         .setDescription(descriptionText)
         .setColor('#5865F2');
 
@@ -275,3 +272,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 bot.login(process.env.DISCORD_TOKEN);
+
