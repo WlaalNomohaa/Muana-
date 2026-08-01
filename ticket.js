@@ -1,8 +1,8 @@
-const { Client } = require('pg');
+const { Client: DBClient } = require('pg');
 const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
 
 // 1. Hubinta iyo Xiriirka PostgreSQL Database (Railway)
-const dbClient = new Client({
+const dbClient = new DBClient({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false // Wuxuu ka hortagbaa SSL error-ka Railway Cloud
@@ -24,11 +24,12 @@ const bot = new DiscordClient({
   ]
 });
 
+// Line-kan oo la saxay backticks-kiisa
 bot.once('ready', () => {
   console.log(🤖 Bot-ku waa online! Wuxuu ku login gareeyay: ${bot.user.tag});
 });
 
-// Amandka tijaabada ah
+// Amarka tijaabada ah
 bot.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
