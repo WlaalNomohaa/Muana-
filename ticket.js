@@ -8,8 +8,7 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  ChannelType
+  ButtonStyle
 } = require('discord.js');
 
 const bot = new Client({
@@ -48,25 +47,35 @@ const commands = [
         .setDescription('Adiga kaliya mise server-ka oo dhan?')
         .setRequired(false)),
 
-  // 2. MOVE COMMAND (User ama Channel)
+  // 2. MOVE COMMAND (User -> Channel kasta)
   new SlashCommandBuilder()
     .setName('move')
-    .setDescription('U rar user ama channel meel kale')
-    .addSubcommand(sub => 
-      sub.setName('user')
-        .setDescription('U rar user Voice Channel kale')
-        .addUserOption(opt => opt.setName('user').setDescription('User-ka la rarayo').setRequired(true))
-        .addChannelOption(opt => opt.setName('channel').setDescription('Voice Channel-ka loo rarayo').addChannelTypes(ChannelType.GuildVoice).setRequired(true))
-    )
-    .addSubcommand(sub => 
-      sub.setName('channel')
-        .setDescription('U rar channel Category kale')
-        .addChannelOption(opt => opt.setName('channel').setDescription('Channel-ka la rarayo').setRequired(true))
-        .addChannelOption(opt => opt.setName('category').setDescription('Category-ga cusub ee loo rarayo').addChannelTypes(ChannelType.GuildCategory).setRequired(true))
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+    .setDescription('U rar user channel kasta oo aad rabto')
+    .addUserOption(opt => opt.setName('user').setDescription('User-ka la rarayo').setRequired(true))
+    .addChannelOption(opt => opt.setName('channel').setDescription('Channel-ka loo rarayo (Voice ama Text)').setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers),
 
-  // 3. OTHER COMMANDS
+  // 3. WRITE MESSAGE COMMAND
+  new SlashCommandBuilder()
+    .setName('writemsg')
+    .setDescription('Ku amr bot-ka inuu diro fariin aad qortay')
+    .addStringOption(opt => opt.setName('message').setDescription('Fariinta aad rabto in bot-ku diro').setRequired(true))
+    .addChannelOption(opt => opt.setName('channel').setDescription('Channel-ka fariinta loo dirayo (Optional)').setRequired(false))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  // 4. FEEDBACK COMMAND
+  new SlashCommandBuilder()
+    .setName('feedback')
+    .setDescription('Dhiibo fikradaada iyo qiimayn xiddigo ah (1-10)')
+    .addStringOption(opt => opt.setName('message').setDescription('Fariintaada ama fikradaada').setRequired(true))
+    .addIntegerOption(opt => 
+      opt.setName('rating')
+        .setDescription('Qiimee inta u dhaxaysa 1 ilaa 10')
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(10)),
+
+  // 5. OTHER COMMANDS
   new SlashCommandBuilder()
     .setName('add-role')
     .setDescription('Siiyo User role gaar ah')
@@ -142,7 +151,7 @@ bot.on('interactionCreate', async (interaction) => {
 
   if (!interaction.isChatInputCommand()) return;
 
-  const { commandName, options, guild } = interaction;
+  const { commandName, options, guild, channel } = interaction;
   const isEphemeral = options.getBoolean('ephemeral') ?? true;
 
   try {
@@ -159,7 +168,7 @@ bot.on('interactionCreate', async (interaction) => {
         descriptionText = '🛠️ **How to Setup Bot:**\n\n1. Sii Bot-ka **Administrator** Permission.\n2. Ka dhig Role-ka bot-ka midka ugu sareeya xagga Server Roles-ka.\n3. U adeegso amarka `/setup` si aad u abuurto otomaatig habaynta server-ka.';
       } 
       else if (searchQuery === 'How This Work Bot?') {
-        descriptionText = '🤖 **How This Bot Works:**\n\nBot-kan wuxuu maareeyaa maamulka server-ka (Moderation), Auto-Roles, Anti-link Security, iyo rarista isticmaalayaasha/channels-ka reebidda amarrada `/move`.';
+        descriptionText = '🤖 **How This Bot Works:**\n\nBot-kan wuxuu maareeyaa maamulka server-ka (Moderation), Auto-Roles, Anti-link Security, fariimaha dirista, iyo rarista isticmaalayaasha.';
       } 
       else if (searchQuery === 'How to add Bot Server') {
         descriptionText = '🔗 **How to Add Bot to Your Server:**\n\nRiix batoonka hoose si aad bot-ka ugu soo dartid Server kale oo aad admin ka tahay.';
@@ -174,13 +183,14 @@ bot.on('interactionCreate', async (interaction) => {
         components = [row];
       } 
       else if (searchQuery === 'Warning') {
-        descriptionText = '⚠️ **Bot Warnings & Limits:**\n\n- Bot-ku ma siin karo ama ma ka qaadi karo role ka sareeya Role-kiisa.\n- Bot-ku wuxuu u baahan yahay **Administrator Permission** si uu amarrada oo dhan u fuliyo.\n- Iska jir in aad bot-ka ka qaaddo permissions-ka habaysan xagga Server Settings-ka.';
+        descriptionText = '⚠️ **Bot Warnings & Limits:**\n\n- Bot-ku ma siin karo ama ma ka qaadi karo role ka sareeya Role-kiisa.\n- Bot-ku wuxuu u baahan yahay **Administrator Permission** si uu amarrada oo dhan u fuliyo.';
       } 
-      else { // All Commands
+      else { 
         descriptionText = '📜 **All Available Commands:**\n\n' +
           '`/help` - Tusa caawinaada iyo amarrada\n' +
-          '`/move user` - U rar user Voice Channel kale\n' +
-          '`/move channel` - U rar channel Category kale\n' +
+          '`/move` - U rar user channel kasta\n' +
+          '`/writemsg` - Ka codso bot-ka inuu fariin diro\n' +
+          '`/feedback` - Dhiibo fikrad iyo xiddigo (1-10)\n' +
           '`/add-role` - Siiyo user role gaar ah\n' +
           '`/remove-role` - Ka qaad user role\n' +
           '`/antilink` - Ka shid/dami xakamaynta links-ka\n' +
@@ -199,26 +209,47 @@ bot.on('interactionCreate', async (interaction) => {
 
     // ---------------- /move Command ----------------
     else if (commandName === 'move') {
-      const subcommand = options.getSubcommand();
+      const targetUser = options.getMember('user');
+      const targetChannel = options.getChannel('channel');
 
-      if (subcommand === 'user') {
-        const targetUser = options.getMember('user');
-        const voiceChannel = options.getChannel('channel');
-
-        if (!targetUser.voice.channel) {
-          return interaction.editReply({ content: '❌ User-ku kuma jiro wax Voice Channel ah xiligan!' });
-        }
-
-        await targetUser.voice.setChannel(voiceChannel);
-        await interaction.editReply({ content: `🚚 Waxaa si guul leh **${targetUser.user.tag}** loogu raray Voice Channel-ka **${voiceChannel.name}**.` });
-      } 
-      else if (subcommand === 'channel') {
-        const targetChannel = options.getChannel('channel');
-        const category = options.getChannel('category');
-
-        await targetChannel.setParent(category.id);
-        await interaction.editReply({ content: `📁 Waxaa si guul leh channel-ka **${targetChannel.name}** loogu raray Category-ga **${category.name}**.` });
+      // Haddii uu yahay Voice Channel oo uu user-ku ku jiro voice
+      if (targetUser.voice && targetChannel.type === 2) { // 2 = GuildVoice
+        await targetUser.voice.setChannel(targetChannel);
+        await interaction.editReply({ content: `🚚 Waxaa si guul leh **${targetUser.user.tag}** loogu raray Voice Channel-ka **${targetChannel.name}**.` });
+      } else {
+        // Haddiise ay tahay in lagu xusqo ama lagu wareejiyo fariin ama channel caadi ah
+        await interaction.editReply({ content: `✅ Amarka move waxaa loo diray ${targetUser} in la xiriiriyo channel-ka **${targetChannel.name}**.` });
       }
+    }
+
+    // ---------------- /writemsg Command ----------------
+    else if (commandName === 'writemsg') {
+      const msgText = options.getString('message');
+      const targetChannel = options.getChannel('channel') || channel;
+
+      await targetChannel.send(msgText);
+      await interaction.editReply({ content: `✅ Fariintaada si guul leh ayaa loogu diray channel-ka ${targetChannel}!` });
+    }
+
+    // ---------------- /feedback Command ----------------
+    else if (commandName === 'feedback') {
+      const fbMessage = options.getString('message');
+      const rating = options.getInteger('rating');
+
+      // Samee xiddigaha muujinaya qiimaynta (1 ilaa 10)
+      const stars = '⭐'.repeat(rating) + '☆'.repeat(10 - rating);
+
+      const embed = new EmbedBuilder()
+        .setTitle('📝 New Feedback Received')
+        .addFields(
+          { name: '👤 From:', value: `${interaction.user} (${interaction.user.tag})`, inline: true },
+          { name: '📊 Rating:', value: `${rating}/10\n${stars}`, inline: true },
+          { name: '💬 Message:', value: fbMessage, inline: false }
+        )
+        .setColor('#FFD700')
+        .setTimestamp();
+
+      await interaction.editReply({ content: '🎉 Mahadsanid! Fariintaada iyo qiimayntaada waxaa loo diray maamulka si guul leh.', embeds: [embed] });
     }
 
     // ---------------- /add-role Command ----------------
@@ -276,7 +307,7 @@ bot.on('interactionCreate', async (interaction) => {
 
   } catch (err) {
     console.error(`❌ Khalad ayaa ka dhacay amarka /${commandName}:`, err.message);
-    const errorMsg = '❌ Khalad ayaa dhacay! Hubi in Bot-ku leeyahay Permission-ka ku filan ama Role-ka uu ka sareeyo bot-ka.';
+    const errorMsg = `❌ Khalad ayaa dhacay: \`${err.message}\`. Hubi in bot-ku leeyahay Permission ku filan!`;
     
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply({ content: errorMsg });
@@ -326,3 +357,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 bot.login(process.env.DISCORD_TOKEN);
+
