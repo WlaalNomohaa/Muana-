@@ -8,7 +8,8 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  ActivityType // <--- Tani ayaa lagu daray
 } = require('discord.js');
 
 const bot = new Client({
@@ -124,6 +125,9 @@ const commands = [
 bot.once('ready', async () => {
   console.log('✅ Bot-ku waa ready! Wuxuu ku login gareeyay: ' + bot.user.tag);
 
+  // 🎯 SET WATCHING STATUS HERE:
+  bot.user.setActivity('Maamulka Server-ka', { type: ActivityType.Watching });
+
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
     console.log('🔄 Waxaa socota diwaan-gelinta Slash Commands...');
@@ -135,7 +139,6 @@ bot.once('ready', async () => {
 });
 
 bot.on('interactionCreate', async (interaction) => {
-  // Autocomplete Request
   if (interaction.isAutocomplete()) {
     if (interaction.commandName === 'help') {
       const focusedValue = interaction.options.getFocused();
@@ -212,12 +215,10 @@ bot.on('interactionCreate', async (interaction) => {
       const targetUser = options.getMember('user');
       const targetChannel = options.getChannel('channel');
 
-      // Haddii uu yahay Voice Channel oo uu user-ku ku jiro voice
-      if (targetUser.voice && targetChannel.type === 2) { // 2 = GuildVoice
+      if (targetUser.voice && targetChannel.type === 2) { 
         await targetUser.voice.setChannel(targetChannel);
         await interaction.editReply({ content: `🚚 Waxaa si guul leh **${targetUser.user.tag}** loogu raray Voice Channel-ka **${targetChannel.name}**.` });
       } else {
-        // Haddiise ay tahay in lagu xusqo ama lagu wareejiyo fariin ama channel caadi ah
         await interaction.editReply({ content: `✅ Amarka move waxaa loo diray ${targetUser} in la xiriiriyo channel-ka **${targetChannel.name}**.` });
       }
     }
@@ -236,7 +237,6 @@ bot.on('interactionCreate', async (interaction) => {
       const fbMessage = options.getString('message');
       const rating = options.getInteger('rating');
 
-      // Samee xiddigaha muujinaya qiimaynta (1 ilaa 10)
       const stars = '⭐'.repeat(rating) + '☆'.repeat(10 - rating);
 
       const embed = new EmbedBuilder()
@@ -357,4 +357,3 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 bot.login(process.env.DISCORD_TOKEN);
-
