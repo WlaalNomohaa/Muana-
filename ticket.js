@@ -36,6 +36,7 @@ const helpOptions = [
   'Another Problem'
 ];
 
+// DHAMMAAN AMARRADA WAXAA LOO BADALAY ADMIN ONLY
 const commands = [
   // 1. HELP COMMAND
   new SlashCommandBuilder()
@@ -45,7 +46,8 @@ const commands = [
       option.setName('search')
         .setDescription('Dooro ama raadi qeybta aad u baahan tahay')
         .setRequired(false)
-        .setAutocomplete(true)),
+        .setAutocomplete(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   // 2. MOVE USER COMMAND
   new SlashCommandBuilder()
@@ -60,7 +62,7 @@ const commands = [
       opt.setName('user')
         .setDescription('User-ka aad rabto inaad rarto')
         .setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   // 3. MOVE CHANNEL COMMAND
   new SlashCommandBuilder()
@@ -75,7 +77,7 @@ const commands = [
         .setDescription('Category-ga loo rarayo')
         .addChannelTypes(ChannelType.GuildCategory)
         .setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   // 4. CLEAR MESSAGES COMMAND
   new SlashCommandBuilder()
@@ -87,12 +89,13 @@ const commands = [
         .setMinValue(1)
         .setMaxValue(100)
         .setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   // 5. SERVER INFO COMMAND
   new SlashCommandBuilder()
     .setName('serverinfo')
-    .setDescription('Soo saar xogta server-ka (Members, Roles, Admins, ID & Owner)'),
+    .setDescription('Soo saar xogta server-ka (Members, Roles, Admins, ID & Owner)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   // 6. USER INFO COMMAND
   new SlashCommandBuilder()
@@ -101,18 +104,10 @@ const commands = [
     .addUserOption(opt => 
       opt.setName('user')
         .setDescription('Dooro User-ka aad xogtiisa u baahan tahay')
-        .setRequired(false)),
+        .setRequired(false))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-  // 7. POLL COMMAND
-  new SlashCommandBuilder()
-    .setName('poll')
-    .setDescription('Abuur codeyn qurxon oo xubnuhu ka qeyb qaadan karaan')
-    .addStringOption(opt => 
-      opt.setName('question')
-        .setDescription('Mawduuca ama su\'aasha codeynta')
-        .setRequired(true)),
-
-  // 8. WRITE MESSAGE COMMAND
+  // 7. WRITE MESSAGE COMMAND
   new SlashCommandBuilder()
     .setName('writemsg')
     .setDescription('Ku amr bot-ka inuu diro fariin aad qortay')
@@ -124,9 +119,9 @@ const commands = [
       opt.setName('channel')
         .setDescription('Channel-ka fariinta loo dirayo')
         .setRequired(false))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-  // 9. FEEDBACK COMMAND
+  // 8. FEEDBACK COMMAND
   new SlashCommandBuilder()
     .setName('feedback')
     .setDescription('Dhiibo fikradaada iyo qiimayn xiddigo ah (1-10)')
@@ -139,22 +134,23 @@ const commands = [
         .setDescription('Qiimee inta u dhaxaysa 1 ilaa 10')
         .setRequired(true)
         .setMinValue(1)
-        .setMaxValue(10)),
+        .setMaxValue(10))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-  // 10. ROLES & ADMIN COMMANDS
+  // 9. ROLES & ADMIN COMMANDS
   new SlashCommandBuilder()
     .setName('add-role')
     .setDescription('Siiyo User role gaar ah')
     .addUserOption(opt => opt.setName('user').setDescription('User-ka la siinayo role-ka').setRequired(true))
     .addRoleOption(opt => opt.setName('role').setDescription('Role-ka la siinayo').setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
     .setName('remove-role')
     .setDescription('Ka qaad User role-ka uu leeyahay')
     .addUserOption(opt => opt.setName('user').setDescription('User-ka laga qaadayo').setRequired(true))
     .addRoleOption(opt => opt.setName('role').setDescription('Role-ka laga qaadayo').setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
     .setName('antilink')
@@ -178,7 +174,8 @@ const commands = [
     .setName('id')
     .setDescription('Soo saar ID-ga User-ka ama Role-ka')
     .addUserOption(opt => opt.setName('user').setDescription('User-ka aad ID-giisa u baahan tahay').setRequired(false))
-    .addRoleOption(opt => opt.setName('role').setDescription('Role-ka aad ID-giisa u baahan tahay').setRequired(false)),
+    .addRoleOption(opt => opt.setName('role').setDescription('Role-ka aad ID-giisa u baahan tahay').setRequired(false))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
     .setName('autorole')
@@ -193,12 +190,12 @@ bot.once('ready', async () => {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
-    console.log('🔄 Waxaa socota tirtirida amarradii hore ee duplicate-ka ahaa...');
+    console.log('🔄 Waxaa socota tirtirida amarradii hore...');
     await rest.put(Routes.applicationCommands(bot.user.id), { body: [] });
 
-    console.log('🔄 Waxaa socota diwaan-gelinta Slash Commands-ka cusub...');
+    console.log('🔄 Waxaa socota diwaan-gelinta Slash Commands-ka cusub (Admin Only)...');
     await rest.put(Routes.applicationCommands(bot.user.id), { body: commands });
-    console.log('✅ Amarradii labo-labada ahaa waa la hagaajiyay, kuwii cusbaa waa la geliyay!');
+    console.log('✅ Amarradii cusbaa waa la geliyay!');
   } catch (error) {
     console.error('❌ Qalad ayaa dhacay marka amarrada la diwaan-gelinayay:', error);
   }
@@ -226,9 +223,15 @@ bot.on('interactionCreate', async (interaction) => {
 
   if (!interaction.isChatInputCommand()) return;
 
+  // HUBIN SIU-AAN DADKA KAIP-KA AH UBISAN SIININ ADMINDIMADA
+  if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return interaction.reply({ 
+      content: '❌ **Amarkan waxaa isticmaali kara oo keliya Administrator-ka Server-ka!**', 
+      ephemeral: true 
+    });
+  }
+
   const { commandName, options, guild, channel } = interaction;
-  
-  // 🔒 SIDA AAD CODSATAY: Dhammaan jawaabaha waa EPHEMERAL (qofka kaliya ayaa arkayo)
   const isEphemeral = true; 
 
   try {
@@ -282,25 +285,6 @@ bot.on('interactionCreate', async (interaction) => {
       await interaction.editReply({ embeds: [embed] });
     }
 
-    // ---------------- /poll ----------------
-    else if (commandName === 'poll') {
-      const question = options.getString('question');
-
-      const embed = new EmbedBuilder()
-        .setTitle('📊 CODEYN CUSUB / POLL')
-        .setDescription(`\n**${question}**\n\n━━━━━━━━━━━━━━━━━━━━━━\n👍 = **Raiiga Wanaagsan / Haa**\n👎 = **Raiiga Diidmada / Maya**`)
-        .setColor('#FEE75C')
-        .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-        .setFooter({ text: 'Dhiibo aragtidaada adiga oo gujinaya emoji-yada hoose!' })
-        .setTimestamp();
-
-      // Poll-ka fariintiisa tooska ah waa la dirayaa chat-ka si dadku ugu codeeyaan, laakiin jawaabta bot-ka waa ephemeral
-      const publicMsg = await channel.send({ embeds: [embed] });
-      await publicMsg.react('👍');
-      await publicMsg.react('👎');
-      await interaction.editReply({ content: '✅ Codeyntii si guul leh ayaa loogu soo saaray chat-ka!' });
-    }
-
     // ---------------- /help Command ----------------
     else if (commandName === 'help') {
       const searchQuery = options.getString('search') || 'All Commands';
@@ -323,14 +307,13 @@ bot.on('interactionCreate', async (interaction) => {
         const profileButton = new ButtonBuilder().setLabel('La Xiriir Admin-ka').setStyle(ButtonStyle.Link).setURL('https://discord.com/users/1483111151469465722');
         components = [new ActionRowBuilder().addComponents(profileButton)];
       } else { 
-        descriptionText = '📜 **All Available Commands:**\n\n' +
+        descriptionText = '📜 **All Available Commands (Admin Only):**\n\n' +
           '`/help` - Tusa caawinaada iyo amarrada\n' +
           '`/move` - U rar user Voice / Chat channel kale\n' +
           '`/move-channel` - U rar channel category kale\n' +
           '`/clear` - Tirtir fariimaha chat-ka\n' +
           '`/serverinfo` - Soo saar xogta server-ka\n' +
           '`/userinfo` - Soo saar xogta user-ka\n' +
-          '`/poll` - Samee codeyn qurxon\n' +
           '`/writemsg` - Ka codso bot-ka inuu fariin diro\n' +
           '`/feedback` - Dhiibo fikrad iyo xiddigo (1-10)\n' +
           '`/add-role` - Siiyo user role gaar ah\n' +
