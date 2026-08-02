@@ -18,15 +18,15 @@ const bot = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates
   ]
 });
 
 let antiLinkStatus = {}; 
 let autoRoles = {};      
-let linkWarnings = {};   // Key: `${guildId}-${userId}`, Value: Count
+let linkWarnings = {};   
 
-// Liiska Search-ka ee /help
 const helpOptions = [
   'How to Setup Bot',
   'How This Work Bot?',
@@ -51,15 +51,41 @@ const commands = [
         .setDescription('Adiga kaliya mise server-ka oo dhan?')
         .setRequired(false)),
 
-  // 2. MOVE COMMAND
+  // 2. MOVE USER COMMAND (VOICE + TEXT CHATS WAA LA DHIRO)
   new SlashCommandBuilder()
     .setName('move')
-    .setDescription('U rar user channel kasta oo aad rabto')
-    .addUserOption(opt => opt.setName('user').setDescription('User-ka la rarayo').setRequired(true))
-    .addChannelOption(opt => opt.setName('channel').setDescription('Channel-ka loo rarayo (Voice ama Text)').setRequired(true))
+    .setDescription('U rar user channel/chat kasta oo aad rabto')
+    .addChannelOption(opt => 
+      opt.setName('channel')
+        .setDescription('Dooro Channel-ka ama Chat-ka loo rarayo user-ka')
+        .addChannelTypes(
+          ChannelType.GuildVoice, 
+          ChannelType.GuildStageVoice, 
+          ChannelType.GuildText
+        )
+        .setRequired(true))
+    .addUserOption(opt => 
+      opt.setName('user')
+        .setDescription('User-ka aad rabto inaad rarto')
+        .setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers),
 
-  // 3. WRITE MESSAGE COMMAND
+  // 3. MOVE CHANNEL COMMAND (Channel & Category Move)
+  new SlashCommandBuilder()
+    .setName('move-channel')
+    .setDescription('U rar channel (Text ama Voice) category kale')
+    .addChannelOption(opt => 
+      opt.setName('channel')
+        .setDescription('Channel-ka aad rabto inaad rarto (Chat ama Voice)')
+        .setRequired(true))
+    .addChannelOption(opt => 
+      opt.setName('category')
+        .setDescription('Category-ga loo rarayo channel-ka')
+        .addChannelTypes(ChannelType.GuildCategory)
+        .setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+  // 4. WRITE MESSAGE COMMAND
   new SlashCommandBuilder()
     .setName('writemsg')
     .setDescription('Ku amr bot-ka inuu diro fariin aad qortay')
@@ -67,7 +93,7 @@ const commands = [
     .addChannelOption(opt => opt.setName('channel').setDescription('Channel-ka fariinta loo dirayo (Optional)').setRequired(false))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-  // 4. FEEDBACK COMMAND
+  // 5. FEEDBACK COMMAND
   new SlashCommandBuilder()
     .setName('feedback')
     .setDescription('Dhiibo fikradaada iyo qiimayn xiddigo ah (1-10)')
@@ -79,7 +105,7 @@ const commands = [
         .setMinValue(1)
         .setMaxValue(10)),
 
-  // 5. OTHER COMMANDS
+  // 6. OTHER COMMANDS
   new SlashCommandBuilder()
     .setName('add-role')
     .setDescription('Siiyo User role gaar ah')
@@ -156,7 +182,6 @@ bot.on('interactionCreate', async (interaction) => {
   // Handle Button Clicks (Admin Only)
   if (interaction.isButton()) {
     if (interaction.customId === 'admin_fix_issue') {
-      // Check if user is Admin or the specified Admin ID
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && interaction.user.id !== '1483111151469465722') {
         return interaction.reply({ content: '❌ Batoonkani waxaa isticmaali kara oo keliya **Admin-ka**!', ephemeral: true });
       }
@@ -185,7 +210,7 @@ bot.on('interactionCreate', async (interaction) => {
         descriptionText = '🛠️ **How to Setup Bot:**\n\n1. Sii Bot-ka **Administrator** Permission.\n2. Ka dhig Role-ka bot-ka midka ugu sareeya xagga Server Roles-ka.\n3. U adeegso amarka `/setup` si aad u abuurto otomaatig habaynta server-ka.';
       } 
       else if (searchQuery === 'How This Work Bot?') {
-        descriptionText = '🤖 **How This Bot Works:**\n\nBot-kan wuxuu maareeyaa maamulka server-ka (Moderation), Auto-Roles, Anti-link Security, fariimaha dirista, iyo rarista isticmaalayaasha.';
+        descriptionText = '🤖 **How This Bot Works:**\n\nBot-kan wuxuu maareeyaa maamulka server-ka (Moderation), Auto-Roles, Anti-link Security, fariimaha dirista, iyo rarista isticmaalayaasha & channels-ka.';
       } 
       else if (searchQuery === 'How to add Bot Server') {
         descriptionText = '🔗 **How to Add Bot to Your Server:**\n\nRiix batoonka hoose si aad bot-ka ugu soo dartid Server kale oo aad admin ka tahay.';
@@ -205,7 +230,6 @@ bot.on('interactionCreate', async (interaction) => {
       else if (searchQuery === 'Another Problem') {
         descriptionText = '❓ **Another Problem / Caawinaad Dheeraad ah:**\n\nHaddii aad u baahan tahay caawinaad kale ama waxyaalo kale oo ku saabsan shaqaynta bot-ka, fadlan la xiriir milkiilaha/admin-ka bot-ka adiga oo riixaya batoonka hoose. \n\nAdmin ID: `1483111151469465722`\nMahadsanid!';
 
-        // Button oo u tagaya Profile-kaaga ama Server-ka Support-ka
         const profileButton = new ButtonBuilder()
           .setLabel('La Xiriir Admin-ka')
           .setStyle(ButtonStyle.Link)
@@ -217,7 +241,8 @@ bot.on('interactionCreate', async (interaction) => {
       else { 
         descriptionText = '📜 **All Available Commands:**\n\n' +
           '`/help` - Tusa caawinaada iyo amarrada\n' +
-          '`/move` - U rar user channel kasta\n' +
+          '`/move` - U rar user Voice / Chat channel kale\n' +
+          '`/move-channel` - U rar channel category kale\n' +
           '`/writemsg` - Ka codso bot-ka inuu fariin diro\n' +
           '`/feedback` - Dhiibo fikrad iyo xiddigo (1-10)\n' +
           '`/add-role` - Siiyo user role gaar ah\n' +
@@ -236,17 +261,54 @@ bot.on('interactionCreate', async (interaction) => {
       await interaction.editReply({ embeds: [embed], components: components });
     }
 
-    // ---------------- /move Command ----------------
+    // ---------------- /move Command (User Move) ----------------
     else if (commandName === 'move') {
-      const targetUser = options.getMember('user');
       const targetChannel = options.getChannel('channel');
+      const targetUser = options.getMember('user');
 
-      if (targetUser.voice && targetChannel.type === ChannelType.GuildVoice) { 
-        await targetUser.voice.setChannel(targetChannel);
-        await interaction.editReply({ content: `🚚 Waxaa si guul leh **${targetUser.user.tag}** loogu raray Voice Channel-ka **${targetChannel.name}**.` });
-      } else {
-        await interaction.editReply({ content: `✅ Amarka move waxaa loo diray ${targetUser} in la xiriiriyo channel-ka **${targetChannel.name}**.` });
+      if (!targetUser) {
+        return await interaction.editReply({ content: '❌ Isticmaalahan (User) laguma dhex heli karo server-ka!' });
       }
+
+      // 1. Hubi in channel-ka la doortay uu yahay Voice ama Stage Channel si user-ka loo raro
+      if (targetChannel.type === ChannelType.GuildVoice || targetChannel.type === ChannelType.GuildStageVoice) {
+        
+        if (!targetUser.voice || !targetUser.voice.channel) {
+          return await interaction.editReply({ 
+            content: `⚠️ **${targetUser.user.tag}** hadda kuma jiro Voice Chat kasta! Waa inuu marka hore ku jiraa Voice si loo raro.` 
+          });
+        }
+
+        // Hubi in uu horey ugu jiro Channel-kaas
+        if (targetUser.voice.channel.id === targetChannel.id) {
+          return await interaction.editReply({ 
+            content: `ℹ️ **${targetUser.user.tag}** wuxuu **horey uga dhex jiraa** Voice Channel-ka **${targetChannel.name}**!` 
+          });
+        }
+
+        // Toos u rar user-ka
+        await targetUser.voice.setChannel(targetChannel);
+        return await interaction.editReply({ 
+          content: `🚚 Waxaa si guul leh **${targetUser.user.tag}** loogu raray Voice Channel-ka **${targetChannel.name}**!` 
+        });
+
+      } else {
+        // Haddii uu yahay Text Chat Channel
+        return await interaction.editReply({ 
+          content: `💬 Waxaad dooratay Chat Channel-ka **${targetChannel.name}**. User-ka **${targetUser.user.tag}** waxaa loo xiriiriyay chat-kan!` 
+        });
+      }
+    }
+
+    // ---------------- /move-channel Command ----------------
+    else if (commandName === 'move-channel') {
+      const targetChannel = options.getChannel('channel');
+      const targetCategory = options.getChannel('category');
+
+      await targetChannel.setParent(targetCategory.id, { lockPermissions: false });
+      await interaction.editReply({ 
+        content: `🚚 Channel-ka ${targetChannel} waxaa si guul leh loogu raray Category-ga **${targetCategory.name}**!` 
+      });
     }
 
     // ---------------- /writemsg Command ----------------
@@ -357,17 +419,14 @@ bot.on('messageCreate', async (message) => {
           linkWarnings[key] = (linkWarnings[key] || 0) + 1;
           const count = linkWarnings[key];
 
-          // Tirtir fariinta
           await message.delete().catch(() => {});
 
           if (count === 1 || count === 2) {
-            // Digtooni kaliya (Warning)
             message.channel.send(`⚠️ ${message.author}, Digtooni (${count}/3): Server-kan laguma soo diri karo link-yo!`).then(msg => {
               setTimeout(() => msg.delete().catch(() => {}), 5000);
             });
           } 
           else if (count === 3) {
-            // Marka 3-aad: 30 Seconds Timeout
             try {
               await message.member.timeout(30 * 1000, 'Anti-link: 3 jeer ayuu link soo diray');
               message.channel.send(`⏳ ${message.author}, Waxaa lagu siiyay **30 seconds timeout** ah sababtoo ah waxaad soo dirtay link-yo digniin ka dib.`).then(msg => {
@@ -378,9 +437,7 @@ bot.on('messageCreate', async (message) => {
             }
           } 
           else {
-            // In ka badan 3 jeer: Toos fariimaha looga xiro (Communication Disabled / Mute)
             try {
-              // Timeout dheeraad ah ama ka joojin fariimaha (tusaale 1 Saacadood timeout ah si uusan u hadlin)
               await message.member.timeout(60 * 60 * 1000, 'Anti-link: Si Joogto ah ayuu u jabiyay xeerka link-yada');
               
               const adminButton = new ButtonBuilder()
